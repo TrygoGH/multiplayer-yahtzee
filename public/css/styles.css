@@ -1,0 +1,62 @@
+.form-div {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+    /* Adds spacing between fields */
+}
+
+/* General styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+}
+
+.lobby-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 20px;
+}
+
+.lobby-card {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.lobby-card h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.lobby-card p {
+    margin: 5px 0;
+    color: #777;
+}
+
+.lobby-card .players {
+    font-weight: bold;
+    color: #333;
+}
+
+.lobby-card .join-btn {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.lobby-card .join-btn:hover {
+    background-color: #45a049;
+}

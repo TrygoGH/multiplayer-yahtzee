@@ -1,0 +1,22 @@
+{
+  "name": "multiplayer-yahtzee",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "copy:constants": "copy src\\constants\\socketEvents.js public\\js\\constants\\socketEvents.js",
+    "copy:client": "xcopy /e /i src\\models\\client public\\js\\models",
+    "build": "npm run copy:constants && npm run copy:client",
+    "start": "node src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "uuid": "^11.1.0"
+  }
+}
