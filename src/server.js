@@ -3,7 +3,7 @@ import path from "path";
 import http from "http";
 import { fileURLToPath } from "url";
 import { Server as SocketServer, Socket } from "socket.io";
-import Lobby from './models/Lobby.js';  // Ensure this path is correct for your project structure
+import Lobby from './models/server/Lobby.js';  // Ensure this path is correct for your project structure
 import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
 console.log("Starting server...");
@@ -26,11 +26,14 @@ const io = new SocketServer(server, {
   }
 });
 
-const lobbies = [
-  new Lobby(uuidv4(), "Lobby1", "Test"),
-  new Lobby(uuidv4(), "Lobby2", "Test2"),
-];
+const lobbiesMap = new Map();
 
+for(let i = 0; i < 10; i++){
+  let lobbyID = uuidv4();
+  let lobby = new Lobby(lobbyID, Date.now(), `Lobby${i+1}`, `Test${i+1}`);
+  console.log(lobby);
+  lobbiesMap.set(lobbyID, lobby);
+}
 
 console.log(path.join(__dirname, "../node_modules/socket.io-client/dist/socket.io.min.js"));
 
@@ -45,7 +48,7 @@ console.log(path.join(publicFolderPath, '/html','index.html'));
 
 // Set up a simple connection event
 io.on("connection", (socket) => {
-  console.log("a user connected");
+  console.log(`a user connected with socket id: ${socket.id}`);
 
   // Listening for a message from the client
   socket.on(EVENTS.CLIENT.MESSAGE, (data) => {
@@ -60,16 +63,34 @@ io.on("connection", (socket) => {
   });
 
   socket.on(EVENTS.CLIENT.GET_LOBBIES, () => {
-    socket.emit(EVENTS.SERVER.SEND_LOBBIES, lobbies);
-    console.log(lobbies);
+    console.log(lobbiesMap);
+    console.log(`sending lobbies to ${socket.id}`);
+    socket.emit(EVENTS.SERVER.SEND_LOBBIES, Array.from(lobbiesMap.values()));
   });
 
-  socket.on(EVENTS.CLIENT.JOIN_LOBBY, (data) => {
-    socket.emit(EVENTS.SERVER.MESSAGE, `Join lobby with id: ${data}`);
-    socket.join(data);
-  });
+  socket.on(EVENTS.CLIENT.JOIN_LOBBY, (lobbyID) => {
+    leaveCurrentLobby(socket);
+    joinLobby(socket, lobbiesMap[lobbyID]);
+  })
 });
 
+function joinLobby(socket, lobby){
+  socket.join(lobby);
+  socket.emit(EVENTS.SERVER.MESSAGE, `Joined lobby with id: ${lobby.id}`);
+}
+
+function leaveCurrentLobby(socket){
+  lobbiesMap.forEach(lobby => {
+    if(socket.rooms.has(lobby.id)){
+      leaveLobby(lobby.id);
+      return;
+    }
+  });
+}
+function leaveLobby(socket, lobby){
+  socket.leave(lobby);
+  socket.emit(EVENTS.SERVER.MESSAGE, `Left lobby with id: ${lobby.id}`);
+}
 // Start the server on port 3000
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

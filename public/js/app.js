@@ -9,19 +9,34 @@ console.log(socket);
 let lobbiesContainer = document.getElementById("lobbies")
 
 loadHTMLStuff();
+let lobbiesMapCache = new Map();
 
 // Listen for messages from the server
 socket.on(EVENTS.SERVER.MESSAGE, (data) => {
   document.getElementById("response").innerText = data;
 });
 
-socket.on(EVENTS.SERVER.SEND_LOBBIES, (data) => {
+socket.on(EVENTS.SERVER.SEND_LOBBIES, (lobbies) => {
   document.getElementById("lobbies").replaceChildren();
-  data.forEach((lobby) => {
-    console.log(lobby);
-    createLobbyCard(lobby);
-  });
+  lobbiesMapCache = lobbies;
+  console.log("lobbies", lobbies);
+  displayLobbies(lobbies);
 });
+
+/**
+ * @param { MapIterator<Lobby> } lobbies - A game lobby
+ */
+function displayLobbies(lobbies){
+  console.log(lobbies);
+  lobbies.sort((a, b) => b.timestamp - a.timestamp)
+  for(const lobby of lobbies){
+    createLobbyCard(new Lobby(lobby));
+  }
+}
+
+function getLobbies(){
+  socket.emit(EVENTS.CLIENT.GET_LOBBIES);
+}
 
 /**
  * @param { Lobby } lobby - A game lobby
@@ -43,14 +58,14 @@ function createLobbyCard(lobby) {
   // Players count
   const playersElement = document.createElement('p');
   playersElement.classList.add('players');
-  playersElement.textContent = `${lobby.players.length}/${lobby.maxPlayers} players`;
+  playersElement.textContent = `${lobby.players.length}/${lobby.maxPlayers}`;
   card.appendChild(playersElement);
 
   // Join button
   const joinButton = document.createElement('button');
   joinButton.classList.add('join-btn');
   joinButton.textContent = 'Join';
-  joinButton.addEventListener('click', () => joinLobby(lobby.id));
+  joinButton.addEventListener('click', () => joinLobby(lobby));
   card.appendChild(joinButton);
 
   document.getElementById("lobbies").appendChild(card);
@@ -63,14 +78,15 @@ function loadHTMLStuff(){
       socket.emit(EVENTS.CLIENT.MESSAGE, "Hello from client!");
     };
     
-    document.getElementById("refreshLobbies").onclick = function () {
-      socket.emit(EVENTS.CLIENT.GET_LOBBIES);
-    };
+    document.getElementById("refreshLobbies").onclick = getLobbies();
   })
 }
 
-function joinLobby(id) {
-  socket.emit(EVENTS.CLIENT.JOIN_LOBBY, id);
+/**
+ * @param { Lobby } lobby - A game lobby
+ */
+function joinLobby(lobby) {
+  socket.emit(EVENTS.CLIENT.JOIN_LOBBY, lobby.id);
 }
 
 

@@ -1,12 +1,22 @@
 import User from "./User.js";
 import Player from "./Player.js";
 import Result from "./Result.js";
-import { Socket } from "socket.io";
 
+/**
+ * @typedef {Object} Lobby
+ * @property {string} name - The name of the lobby
+ * @property {string} id - Id of the lobby
+ * @property {number} timestamp - Time of the created lobby
+ * @property {string} owner - Owner of the lobby
+ * @property {Player[]} players - Array of Players
+ * @property {number} maxPlayers - Maximum number of players
+ */
 class Lobby {
-  constructor(id, name, maxPlayers = 4) {
+  constructor(id, timestamp, name, owner, maxPlayers = 4) {
     this.id = id;
+    this.timestamp = timestamp;
     this.name = name;
+    this.owner = owner;
     this.maxPlayers = maxPlayers;
     this.players = []; // Ordered collection of players
   }
