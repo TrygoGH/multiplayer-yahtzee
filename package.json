@@ -4,10 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "copy:constants": "copy src\\constants\\socketEvents.js public\\js\\constants\\socketEvents.js",
-    "copy:client": "xcopy /e /i src\\models\\client public\\js\\models",
-    "build": "npm run copy:constants && npm run copy:client",
-    "start": "node src/server.js"
+    "copy:clientConstants": "rmdir /s /q public\\js\\constants && xcopy /e /i src\\constants public\\js\\constants",
+    "copy:clientModels": "rmdir /s /q public\\js\\models && xcopy /e /i src\\models public\\js\\models",
+    "copy:clientUtils": "rmdir /s /q public\\js\\utils && xcopy /e /i src\\utils public\\js\\utils",
+    "build": "npm run copy:clientConstants && npm run copy:clientModels && npm run copy:clientUtils",
+    "start": "nodemon src/server.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +16,7 @@
   "type": "module",
   "dependencies": {
     "express": "^4.21.2",
+    "nodemon": "^3.1.9",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "uuid": "^11.1.0"

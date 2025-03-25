@@ -1,5 +1,5 @@
 // import { io } from "socket.io-client";
-import { EVENTS } from "../js/constants/socketEvents.js";
+import { EVENTS } from "./constants/socketEvents.js";
 import Lobby from "./models/Lobby.js"
 // import { io } from "https://cdn.socket.io/4.8.1/socket.io.min.js";
 

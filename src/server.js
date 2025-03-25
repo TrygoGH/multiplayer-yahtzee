@@ -3,10 +3,10 @@ import path from "path";
 import http from "http";
 import { fileURLToPath } from "url";
 import { Server as SocketServer, Socket } from "socket.io";
-import Lobby from './models/server/Lobby.js';  // Ensure this path is correct for your project structure
+import Lobby from './models/Lobby.js';  // Ensure this path is correct for your project structure
 import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
-console.log("Starting server...");
+console.log(`Starting server at ${Date.now().toLocaleString()}`);
 
 const app = express();
 const PORT = 3000;
@@ -93,5 +93,8 @@ function leaveLobby(socket, lobby){
 }
 // Start the server on port 3000
 server.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  const currentTime = new Date();
+  const formattedTime = `${currentTime.getHours()}:${currentTime.getMinutes()}:${currentTime.getSeconds()}`;
+  console.log(`Server is running on http://localhost:${PORT}. Started at ${formattedTime}`);
+
 });

@@ -1,6 +1,8 @@
+import { v4 as uuidv4 } from "uuid";
+
 class User {
-  constructor(id = 0, username = "Guest", nickname = "Player") {
-    this.id = id // Unique ID for persistence
+  constructor(username = "Guest", nickname = "Player") {
+    this.id = uuidv4(); // Unique ID for persistence
     this.username = username;
     this.nickname = nickname;
   }

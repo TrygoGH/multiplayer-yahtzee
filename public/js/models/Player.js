@@ -1,3 +1,6 @@
+import { Socket } from "socket.io";
+import User from "./User.js";
+
 class Player {
   constructor(user, socket) {
     this.user = user;  // Composition: Player has a User
