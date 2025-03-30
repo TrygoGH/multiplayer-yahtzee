@@ -12,6 +12,7 @@ export const EVENTS = {
     SERVER: {
         MESSAGE: "message",
         SEND_LOBBIES: "receive_lobbies",
+        JOIN_LOBBY: "join_lobby",
     },
 };
   

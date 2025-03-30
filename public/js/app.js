@@ -16,12 +16,15 @@ socket.on(EVENTS.SERVER.MESSAGE, (data) => {
   document.getElementById("response").innerText = data;
 });
 
-socket.on(EVENTS.SERVER.SEND_LOBBIES, (lobbies) => {
+socket.on(EVENTS.SERVER.SEND_LOBBIES, ({lobbyKeys, lobbyValues}) => {
   document.getElementById("lobbies").replaceChildren();
-  lobbiesMapCache = lobbies;
-  console.log("lobbies", lobbies);
-  displayLobbies(lobbies);
+  lobbiesMapCache = new Map(lobbyKeys.map((key, index) => [key, lobbyValues[index]]));
+  console.log("lobbies", lobbyValues);
+  displayLobbies(lobbyValues);
+  console.log(lobbiesMapCache);
 });
+
+socket.on(EVENTS.SERVER.JOIN_LOBBY)
 
 /**
  * @param { MapIterator<Lobby> } lobbies - A game lobby
@@ -30,7 +33,7 @@ function displayLobbies(lobbies){
   console.log(lobbies);
   lobbies.sort((a, b) => b.timestamp - a.timestamp)
   for(const lobby of lobbies){
-    createLobbyCard(new Lobby(lobby));
+    createLobbyCard(Lobby.fromObject(lobby));
   }
 }
 

@@ -15,7 +15,9 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "argon2": "^0.41.1",
     "express": "^4.21.2",
+    "mysql2": "^3.14.0",
     "nodemon": "^3.1.9",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",

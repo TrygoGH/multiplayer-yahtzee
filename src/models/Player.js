@@ -1,18 +1,9 @@
-import { Socket } from "socket.io";
-import User from "./User.js";
-
 class Player {
-  constructor(user, socket) {
+  constructor(user, socket, socketId) {
     this.user = user;  // Composition: Player has a User
-    this.socket = socket;  // Player has a WebSocket
-  }
-
-  sendMessage(event, data) {
-    this.socket.emit(event, data);
-  }
-
-  disconnect() {
-    this.socket.disconnect();
+    this.socket = socket;
+    this.socketId = socketId; // Player has a WebSocket
+    this.room = null;
   }
 }
 
