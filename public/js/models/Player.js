@@ -1,16 +1,9 @@
 class Player {
-  constructor(user, socket) {
+  constructor(user, socket, socketId) {
     this.user = user;  // Composition: Player has a User
-    this.socket = socket;  // Player has a WebSocket
+    this.socket = socket;
+    this.socketId = socketId; // Player has a WebSocket
     this.room = null;
-  }
-
-  sendMessage(event, data) {
-    this.socket.emit(event, data);
-  }
-
-  disconnect() {
-    this.socket.disconnect();
   }
 }
 

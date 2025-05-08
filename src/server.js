@@ -8,7 +8,9 @@ import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
 import Result from "./utils/Result.js";
 import { getConnection, testConnection } from "./database/database.js";
-import { getAllUsers, registerUser } from "./database/dbUserFunctions.js";
+import { deleteOldLobbies, getAllUsers, getMySQLDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
+import User from "./models/User.js";
+import { LobbySchema } from "./database/tables/LobbySchema.js";
 console.log(`Starting server at ${Date.now().toLocaleString()}`);
 
 const app = express();
@@ -31,13 +33,6 @@ const io = new SocketServer(server, {
 
 const lobbiesMap = new Map();
 
-for (let i = 0; i < 10; i++) {
-  let lobbyID = uuidv4();
-  let lobby = new Lobby(lobbyID, Date.now(), `Lobby${i + 1}`, `Test${i + 1}`);
-  console.log(lobby);
-  lobbiesMap.set(lobbyID, lobby);
-}
-
 console.log(path.join(__dirname, "../node_modules/socket.io-client/dist/socket.io.min.js"));
 
 app.use(express.static(publicFolderPath));
@@ -56,6 +51,9 @@ testConnection().then(result =>{
 getAllUsers().then(result =>{
   console.log(`server connection result:`, result);
 });
+
+createTestLobbies();
+await storeTestLobbies();
 
 
 // Set up a simple connection event
@@ -82,30 +80,79 @@ io.on("connection", (socket) => {
     socket.emit(EVENTS.SERVER.SEND_LOBBIES, { lobbyKeys: lobbyKeys, lobbyValues: lobbyValues });
   });
 
-  socket.on(EVENTS.CLIENT.JOIN_LOBBY, (lobbyID) => {
-    leaveCurrentLobby(socket);
-    joinLobby(socket, lobbiesMap[lobbyID]);
-    socket.emit(EVENTS.SERVER.JOIN_LOBBY, new Result())
+  socket.on(EVENTS.CLIENT.JOIN_LOBBY, ({currentLobbyID, newlobbyID}) => {
+    leaveLobby(socket, currentLobbyID);
+    joinLobby(socket, newlobbyID);
+    socket.emit(EVENTS.SERVER.JOIN_LOBBY, Result.success("You joined"));
   })
 });
 
-function joinLobby(socket, lobby) {
-  socket.join(lobby);
-  socket.emit(EVENTS.SERVER.MESSAGE, `Joined lobby with id: ${lobby.id}`);
+async function joinLobby(socket, lobbyID) {
+  const lobbyResult = await selectLobby(lobbyID);
+  if(lobbyResult.isFailure()) socket.emit(EVENTS.SERVER.MESSAGE, `Failed to join lobby. ${lobbyResult.error}`);
+
+  socket.join(lobbyID);
+  socket.emit(EVENTS.SERVER.MESSAGE, `Joined lobby with id: ${lobbyID}`);
 }
 
-function leaveCurrentLobby(socket) {
-  lobbiesMap.forEach(lobby => {
-    if (socket.rooms.has(lobby.id)) {
-      leaveLobby(lobby.id);
-      return;
-    }
+function leaveLobby(socket, lobbyID) {
+  socket.leave(lobbyID);
+  socket.emit(EVENTS.SERVER.MESSAGE, `Left lobby with id: ${lobbyID}`);
+}
+
+function createTestLobbies(){
+  for (let i = 0; i < 10; i++) {
+    let lobby = new Lobby({
+      id: uuidv4(), 
+      timestamp: Date.now(), 
+      name: `Lobby${i + 1}`, 
+      owner: new User({
+        id: uuidv4(),
+        name: `Test${i + 1}+`,
+        nickname: `TestNick${i + 1}+`
+      }),
+      maxPlayers: 4
+    });
+    lobbiesMap.set(lobby.id, lobby);
+  }
+}
+
+async function storeTestLobbies(){
+  console.log("CURRENT DATE:", getMySQLDate());
+  console.log(await deleteOldLobbies(getMySQLDate()));
+  for(const lobby of lobbiesMap.values()){
+    createLobby(lobby);
+  }
+}
+
+async function createLobby(lobby){
+  const lobbySchema = lobbyToLobbySchema(lobby);
+  await insertLobby(lobbySchema);
+}
+
+async function getLobby(lobbyUUID){
+  const result = await selectLobby(lobbyUUID);
+  return result.isFailure()
+  ? result
+  : Result.success(result.unwrap());
+}
+
+/**
+ * Converts a lobby object to a LobbySchema instance.
+ *
+ * @param {Lobby} lobby - The lobby object to convert.
+ * @returns {LobbySchema} A new instance of LobbySchema with mapped properties.
+ */
+function lobbyToLobbySchema(lobby) {
+  return new LobbySchema({
+      uuid: lobby.id,
+      owner_uuid: lobby.owner.id,
+      name: lobby.name,
+      max_players: lobby.maxPlayers,
+      created_at: lobby.timestamp,
   });
 }
-function leaveLobby(socket, lobby) {
-  socket.leave(lobby);
-  socket.emit(EVENTS.SERVER.MESSAGE, `Left lobby with id: ${lobby.id}`);
-}
+
 // Start the server on port 3000
 server.listen(PORT, () => {
   const currentTime = new Date();

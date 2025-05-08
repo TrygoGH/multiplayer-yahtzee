@@ -1,7 +1,7 @@
 /**
  * Class representing a user in the system.
  */
-export class User {
+export class UserSchema {
     constructor({
       id,           // Integer: Auto Incremented ID of the user
       uuid,         // String: Unique identifier for the user (UUID)

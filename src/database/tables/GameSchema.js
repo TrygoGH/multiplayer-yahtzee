@@ -1,7 +1,7 @@
 /**
  * Class representing a game.
  */
-export class Game {
+export class GameSchema {
     constructor({
       id,            // Integer: Auto Incremented ID of the game
       uuid,          // String: Unique identifier for the game (UUID)

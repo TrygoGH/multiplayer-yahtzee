@@ -1,7 +1,7 @@
 /**
  * Class representing a player in a game.
  */
-export class GamePlayer {
+export class GamePlayerSchema {
     constructor({
       id,             // Integer: Auto Incremented ID of the player
       game_id,        // Integer: The ID of the game the player belongs to

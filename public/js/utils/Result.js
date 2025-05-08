@@ -46,6 +46,14 @@ export class Result {
   }
 }
 
+/**
+ * Wraps a promise in a try-catch block and returns a Result object.
+ *
+ * @template T The type of the successful data.
+ * @template E The type of the error.
+ * @param {Promise<T>} promise - The promise to execute.
+ * @returns {Promise<Result<T, E>>} A Result object containing either the resolved data or an error.
+ */
 export async function tryCatch(promise) {
   try {
     const data = await promise;

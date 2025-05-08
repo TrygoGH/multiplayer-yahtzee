@@ -1,7 +1,7 @@
 /**
  * Class representing a finished game record.
  */
-export class FinishedGame {
+export class FinishedGameSchema {
     constructor({
       id,            // Integer: Auto Incremented ID of the finished game
       game_uuid,     // String: Unique identifier for the game (UUID)

@@ -9,7 +9,8 @@ console.log(socket);
 let lobbiesContainer = document.getElementById("lobbies")
 
 loadHTMLStuff();
-let lobbiesMapCache = new Map();
+const lobbiesMapCache = new Map();
+let currentLobby = null;
 
 // Listen for messages from the server
 socket.on(EVENTS.SERVER.MESSAGE, (data) => {
@@ -24,7 +25,9 @@ socket.on(EVENTS.SERVER.SEND_LOBBIES, ({lobbyKeys, lobbyValues}) => {
   console.log(lobbiesMapCache);
 });
 
-socket.on(EVENTS.SERVER.JOIN_LOBBY)
+socket.on(EVENTS.SERVER.JOIN_LOBBY, () =>{
+
+})
 
 /**
  * @param { MapIterator<Lobby> } lobbies - A game lobby
@@ -88,8 +91,8 @@ function loadHTMLStuff(){
 /**
  * @param { Lobby } lobby - A game lobby
  */
-function joinLobby(lobby) {
-  socket.emit(EVENTS.CLIENT.JOIN_LOBBY, lobby.id);
+function joinLobby(newLobby) {
+  socket.emit(EVENTS.CLIENT.JOIN_LOBBY, {currentLobby: currentLobby.id, newLobby: newLobby.id});
 }
 
 

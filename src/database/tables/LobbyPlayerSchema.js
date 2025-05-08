@@ -1,7 +1,7 @@
 /**
  * Class representing a player in a lobby.
  */
-export class LobbyPlayer {
+export class LobbyPlayerSchema {
     constructor({
       id,            // Integer: Auto Incremented ID of the player in the lobby
       lobby_id,      // Integer: The ID of the lobby the player belongs to

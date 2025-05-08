@@ -3,11 +3,11 @@ import Player from "./Player.js";
 import Result from "../utils/Result.js";
 
 /**
- * @typedef {Object} LobbyData
+ * @typedef {Object} Lobby
  * @property {string} name - The name of the lobby
  * @property {string} id - Id of the lobby
  * @property {number} timestamp - Time of the created lobby
- * @property {string} owner - Owner of the lobby
+ * @property {User} owner - Owner of the lobby
  * @property {Player[]} players - Array of Players
  * @property {number} maxPlayers - Maximum number of players
  */
@@ -17,10 +17,10 @@ class Lobby {
    * @param {string} id - Id of the lobby
    * @param {number} timestamp - Time of creation
    * @param {string} name - Name of the lobby
-   * @param {string} owner - Owner's ID
+   * @param {User} owner - Owner's User
    * @param {number} [maxPlayers=4] - Max players allowed
    */
-  constructor(id, timestamp, name, owner, maxPlayers = 4) {
+  constructor({id, timestamp, name, owner, maxPlayers = 4}) {
     this.id = id;
     this.timestamp = timestamp;
     this.name = name;
