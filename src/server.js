@@ -8,9 +8,13 @@ import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
 import Result from "./utils/Result.js";
 import { getConnection, testConnection } from "./database/database.js";
-import { deleteOldLobbies, getAllUsers, getMySQLDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
+import { deleteOldLobbies, deleteAll, getAllUsers, getMySQLDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
 import User from "./models/User.js";
 import { LobbySchema } from "./database/tables/LobbySchema.js";
+import { REFUSED } from "dns";
+import { TABLES } from "./database/dbTableNames.js";
+import { test } from "./utils/Test.js";
+
 console.log(`Starting server at ${Date.now().toLocaleString()}`);
 
 const app = express();
@@ -26,6 +30,8 @@ const io = new SocketServer(server, {
     origin: [
       "http://localhost:8080",
       "http://127.0.0.1:8080",
+      "http://127.0.0.1:5173",
+      "http://localhost:5173",
     ],
     methods: ["GET", "POST"]
   }
@@ -38,18 +44,29 @@ console.log(path.join(__dirname, "../node_modules/socket.io-client/dist/socket.i
 app.use(express.static(publicFolderPath));
 console.log(publicFolderPath);
 
-app.get('/', (req, res) => {
+/*
+app.get('*', (req, res) => {
   res.sendFile(path.join(publicFolderPath, '/html', 'index.html'));
 });
+*/
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(publicFolderPath, '/html', 'home.html'));
+});
+
+app.get('/lobby', (req, res) => {
+  res.sendFile(path.join(publicFolderPath, '/html', 'lobby.html'));
+});
+
 
 console.log(path.join(publicFolderPath, '/html', 'index.html'));
 
 testConnection().then(result =>{
-  console.log(`server connection result:`, result);
+  console.log(`server connection result:, result`);
 });
 
 getAllUsers().then(result =>{
-  console.log(`server connection result:`, result);
+  console.log(`server connection result:, result`);
 });
 
 createTestLobbies();
@@ -61,43 +78,57 @@ io.on("connection", (socket) => {
   console.log(`a user connected with socket id: ${socket.id}`);
 
   // Listening for a message from the client
-  socket.on(EVENTS.CLIENT.MESSAGE, (data) => {
+  socket.on(EVENTS.client.action.message, (data) => {
     console.log("Message received:", data);
     // Sending a message back to the client
-    socket.emit(EVENTS.SERVER.MESSAGE, "Hello from server!");
+    socket.emit(EVENTS.server.action.message, "Hello from server!");
   });
 
   // Handle disconnect event
-  socket.on(EVENTS.CLIENT.DISCONNECT, () => {
+  socket.on(EVENTS.client.action.disconnect, () => {
     console.log("user disconnected");
   });
 
-  socket.on(EVENTS.CLIENT.GET_LOBBIES, () => {
-    console.log(lobbiesMap);
+  socket.on(EVENTS.client.request.message_room, ({room, message}) => {
+    console.log("sending a message to room", room);
+    socket.to(room).emit(EVENTS.client.broadcast.message_room, {sender: null, message: message});
+  });
+
+  socket.on(EVENTS.client.request.get_lobbies, () => {
     console.log(`sending lobbies to ${socket.id}`);
     const lobbyKeys = Array.from(lobbiesMap.keys());
     const lobbyValues = Array.from(lobbiesMap.values());
-    socket.emit(EVENTS.SERVER.SEND_LOBBIES, { lobbyKeys: lobbyKeys, lobbyValues: lobbyValues });
+    socket.emit(EVENTS.server.response.get_lobbies, { lobbyKeys: lobbyKeys, lobbyValues: lobbyValues });
   });
 
-  socket.on(EVENTS.CLIENT.JOIN_LOBBY, ({currentLobbyID, newlobbyID}) => {
-    leaveLobby(socket, currentLobbyID);
-    joinLobby(socket, newlobbyID);
-    socket.emit(EVENTS.SERVER.JOIN_LOBBY, Result.success("You joined"));
+  socket.on(EVENTS.client.request.join_lobby, async ({currentLobbyID, newLobbyID}) => {
+    if(currentLobbyID === newLobbyID){
+      socket.emit(EVENTS.server.response.join_lobby, Result.failure("Client is already in this lobby"));
+      return;
+    }
+    const leaveLobbyResult = leaveLobby(socket, currentLobbyID);
+    const joinLobbyResult = await joinLobby(socket, newLobbyID);
+    console.log("lobbiesID", newLobbyID);
+    socket.emit(EVENTS.server.response.join_lobby, Result.success(lobbiesMap.get(newLobbyID)));
+    socket.emit(EVENTS.server.action.result_messages, [
+      leaveLobbyResult,
+      joinLobbyResult
+    ]);
   })
 });
 
 async function joinLobby(socket, lobbyID) {
   const lobbyResult = await selectLobby(lobbyID);
-  if(lobbyResult.isFailure()) socket.emit(EVENTS.SERVER.MESSAGE, `Failed to join lobby. ${lobbyResult.error}`);
+  if(lobbyResult.isFailure()) 
+    return Result.failure(`Failed to join lobby. ${lobbyResult.error}`);
 
   socket.join(lobbyID);
-  socket.emit(EVENTS.SERVER.MESSAGE, `Joined lobby with id: ${lobbyID}`);
+  return Result.success(`Joined lobby with id: ${lobbyID}`);
 }
 
 function leaveLobby(socket, lobbyID) {
   socket.leave(lobbyID);
-  socket.emit(EVENTS.SERVER.MESSAGE, `Left lobby with id: ${lobbyID}`);
+  return Result.success(`Left lobby with id: ${lobbyID}`);
 }
 
 function createTestLobbies(){
@@ -108,8 +139,8 @@ function createTestLobbies(){
       name: `Lobby${i + 1}`, 
       owner: new User({
         id: uuidv4(),
-        name: `Test${i + 1}+`,
-        nickname: `TestNick${i + 1}+`
+        name: `Test${i + 1}`,
+        nickname: `TestNick${i + 1}`
       }),
       maxPlayers: 4
     });
@@ -119,7 +150,8 @@ function createTestLobbies(){
 
 async function storeTestLobbies(){
   console.log("CURRENT DATE:", getMySQLDate());
-  console.log(await deleteOldLobbies(getMySQLDate()));
+  console.log(await deleteAll(TABLES.LOBBIES))
+  //console.log(await deleteOldLobbies(getMySQLDate()));
   for(const lobby of lobbiesMap.values()){
     createLobby(lobby);
   }

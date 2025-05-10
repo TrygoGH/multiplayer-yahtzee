@@ -35,13 +35,13 @@ class Lobby {
    * @returns {Lobby} - A new `Lobby` instance
    */
   static fromObject(lobbyData) {
-    const lobby = new Lobby(
-      lobbyData.id,
-      lobbyData.timestamp,
-      lobbyData.name,
-      lobbyData.owner,
-      lobbyData.maxPlayers
-    );
+    const lobby = new Lobby({
+      id: lobbyData.id,
+      timestamp: lobbyData.timestamp,
+      name: lobbyData.name,
+      owner: lobbyData.owner,
+      maxPlayers: lobbyData.maxPlayers
+    });
 
     // Restore players if needed
     if (Array.isArray(lobbyData.players)) {

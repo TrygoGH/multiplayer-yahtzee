@@ -137,5 +137,6 @@ export async function deleteOldLobbies(timestamp) {
 }
 
 export function getMySQLDate(timestamp = Date.now()) {
-  return new Date(timestamp).toISOString().slice(0, 19).replace("T", " ");
+  const offset = 2 * 60 * 60 * 1000;
+  return new Date(timestamp+offset).toISOString().slice(0, 19).replace("T", " ");
 }

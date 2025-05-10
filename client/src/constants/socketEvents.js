@@ -4,7 +4,7 @@ Event Types:
 - action: One-way actions that don't expect a response (e.g., "disconnect", "message").
 - request: A client or server is requesting data or an operation. Expects a corresponding response event.
 - response: Sent in reply to a request. Should be handled by the original requester.
-- broadcast: Sent to a room/multiple clients. Can be combined with other types if needed.
+- broadcast: Sent to multiple clients (e.g., a room or all clients). Can be combined with other types if needed.
 */
 
 export const EVENTS = {
@@ -16,7 +16,7 @@ export const EVENTS = {
         message_room: "message_room_request",
       },
       response: {
-        
+
       },
       broadcast: {
         message_room: "message_room_broadcast",
