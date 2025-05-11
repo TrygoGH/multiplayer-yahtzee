@@ -91,7 +91,7 @@ io.on("connection", (socket) => {
 
   socket.on(EVENTS.client.request.message_room, ({room, message}) => {
     console.log("sending a message to room", room);
-    socket.to(room).emit(EVENTS.client.broadcast.message_room, {sender: null, message: message});
+    socket.to(room).emit(EVENTS.client.broadcast.message_room, {sender: socket.id, message: message});
   });
 
   socket.on(EVENTS.client.request.get_lobbies, () => {
