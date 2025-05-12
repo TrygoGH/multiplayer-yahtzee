@@ -72,6 +72,13 @@ getAllUsers().then(result =>{
 createTestLobbies();
 await storeTestLobbies();
 
+io.use((socket, next) => {
+  const { token, nickname, username, email } = socket.handshake.auth;
+
+  socket.user = { username: username, email: email, nickname: nickname };
+
+  next();
+});
 
 // Set up a simple connection event
 io.on("connection", (socket) => {

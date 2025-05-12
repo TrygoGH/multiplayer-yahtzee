@@ -2,7 +2,7 @@
 import { io } from "socket.io-client"
 import Lobby from "../models/Lobby"
 
-export const socket = io("http://localhost:3000")
+export let socket = null;
 export const lobbiesMapCache = new Map();
 export const lobbyTracker = { current: null };
 export const EVENTS = {
@@ -47,7 +47,8 @@ export const EVENTS = {
   },
 };
 
-socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
+function setupSocket(socket){
+  socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
   lobbiesMapCache.clear()
   lobbyKeys.forEach((key, index) => {
     lobbiesMapCache.set(key, lobbyValues[index])
@@ -60,6 +61,7 @@ socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {
     lobbyTracker.current = lobbyJoinResult.data
   }
 })
+}
 
 // Functions you can call from Vue components
 export function getLobbies() {
@@ -86,6 +88,58 @@ export function handleText(text) {
     room: lobbyTracker.current.id,
     message: text
   })
+}
+
+
+export function connectSocket(authData) {
+  socket = io('http://localhost:3000', {
+    auth: authData
+  });
+
+  socket.on('connect_error', (err) => {
+    console.error('Socket connection error:', err.message);
+  });
+
+  sessionStorage.setItem("authData", JSON.stringify(authData));
+
+  setupSocket(socket);
+  return socket;
+}
+
+export function getSocket() {
+  if (!socket) {
+    throw new Error('Socket not connected yet')
+  }
+  return socket
+}
+
+export function getSocketSafe(){
+  const invalidSocket = (!socket || socket.disconnected);
+  if(!invalidSocket){
+    return getSocket();
+  }
+
+  const storedAuthData = sessionStorage.getItem("authData");
+
+  if (!storedAuthData) {
+    throw new Error('Socket not connected yet');
+  }
+
+  const authData = JSON.parse(storedAuthData);
+  
+  return connectSocket(authData);
+}
+
+export function replace(eventName, callback) {
+  socket.off(eventName);
+  socket.on(eventName, callback);
+}
+
+export function clearAll(socket) {
+  const events = socket.eventNames(); 
+  events.forEach((event) => {
+    socket.off(event); 
+  });
 }
 
 /*

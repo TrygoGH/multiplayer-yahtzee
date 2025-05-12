@@ -9,7 +9,6 @@
       </div>
   
       <div class="controls">
-        <button :disabled="!isHost" @click="startGame">Start Game</button>
         <button @click="leaveLobby">Leave Lobby</button>
       </div>
   
@@ -64,12 +63,11 @@
   function leaveLobby() {
     socket.emit(EVENTS.client.request.leave_lobby)
     lobbyTracker.current = null;
-    router.push({ name: 'LobbySelect' }) 
+    router.push({ name: 'LobbySelect' }) // Navigate to the LobbySelect page
   }
   
   function startGame() {
     console.log("Start game requested")
-    router.push({ name: 'Game' }) 
   }
   
   onMounted(() => {

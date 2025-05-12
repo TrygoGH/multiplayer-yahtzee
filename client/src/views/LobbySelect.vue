@@ -23,18 +23,20 @@
 
 <script setup>
 // Import relevant services, constants, and Vue Router
-import { socket, getLobbies, handleText, lobbyTracker, lobbiesMapCache, joinLobby } from '@/services/socketService';
-import { EVENTS } from '@/constants/socketEvents';
+import { getLobbies, getSocketSafe, handleText, lobbyTracker, lobbiesMapCache, joinLobby, EVENTS} from '@/services/socketService';
 import Lobby from '@/models/Lobby';
 import { useRouter } from 'vue-router';  // Import useRouter to use routing
 
 // Reactive data
 import { ref } from 'vue';
+import { getSocket } from '../services/socketService';
 
 const messageList = ref([]);
 const responseMessage = ref('');
 const messageInput = ref('');
 const lobbies = ref([]);
+const socket = getSocketSafe();
+setupSocketEvents();
 
 // Initialize Vue Router
 const router = useRouter();
@@ -56,7 +58,8 @@ const tryJoinLobby = (lobby) => {
   joinLobby(lobby);
 };
 
-// Listen for socket events
+function setupSocketEvents(){
+  // Listen for socket events
 socket.on(EVENTS.server.action.message, (data) => {
   responseMessage.value = data;
 });
@@ -79,6 +82,8 @@ socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {
     responseMessage.value = lobbyJoinResult.error;
   }
 });
+
+}
 
 // Call getLobbies to populate the list on load
 getLobbies();
