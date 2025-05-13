@@ -39,14 +39,14 @@
     // Simulate login + receiving token from backend
     if (!username.value.trim()) return
     const mockUser = {username: username.value, nickname: username.value}
-    connectSocket({ token: mockUser })
+    connectSocket(mockUser)
     router.push('/lobby-select')
   }
   
   const continueAsGuest = () => {
     if (!nickname.value.trim()) return
     const mockUser = {username: "guest", nickname: nickname.value}
-    connectSocket({token: mockUser})
+    connectSocket(mockUser)
     router.push('/lobby-select')
   }
   </script>

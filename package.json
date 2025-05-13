@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "copy:clientConstants": "rmdir /s /q public\\js\\constants && xcopy /e /i src\\constants public\\js\\constants",
+    "copy:clientConstants": "rmdir /s /q client\\src\\constants && xcopy /e /i src\\constants public\\js\\constants",
     "copy:clientModels": "rmdir /s /q public\\js\\models && xcopy /e /i src\\models public\\js\\models",
     "copy:clientUtils": "rmdir /s /q public\\js\\utils && xcopy /e /i src\\utils public\\js\\utils",
     "build": "npm run copy:clientConstants && npm run copy:clientModels && npm run copy:clientUtils",

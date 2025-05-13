@@ -14,6 +14,7 @@ import { LobbySchema } from "./database/tables/LobbySchema.js";
 import { REFUSED } from "dns";
 import { TABLES } from "./database/dbTableNames.js";
 import { test } from "./utils/Test.js";
+import { GameManager } from "./models/game/managers/GameManager.js";
 
 console.log(`Starting server at ${Date.now().toLocaleString()}`);
 
@@ -73,9 +74,11 @@ createTestLobbies();
 await storeTestLobbies();
 
 io.use((socket, next) => {
+  console.log(socket.handshake.auth);
   const { token, nickname, username, email } = socket.handshake.auth;
 
   socket.user = { username: username, email: email, nickname: nickname };
+  console.log("userdata", socket.user.username);
 
   next();
 });
@@ -98,7 +101,7 @@ io.on("connection", (socket) => {
 
   socket.on(EVENTS.client.request.message_room, ({room, message}) => {
     console.log("sending a message to room", room);
-    socket.to(room).emit(EVENTS.client.broadcast.message_room, {sender: socket.id, message: message});
+    socket.to(room).emit(EVENTS.client.broadcast.message_room, {sender: socket.user.nickname, message: message});
   });
 
   socket.on(EVENTS.client.request.get_lobbies, () => {
@@ -199,3 +202,5 @@ server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}. Started at ${formattedTime}`);
 
 });
+
+const gameManager = new GameManager();
