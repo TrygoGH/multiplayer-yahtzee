@@ -10,7 +10,7 @@
     <div id="messages">
       <p v-for="(message, index) in messageList" :key="index">{{ message }}</p>
     </div>
-    <div id="lobbies">
+    <div id="lobbies" class="lobbies-container">
       <div v-for="lobby in lobbies" :key="lobby.id" class="lobby-card">
         <h3>{{ lobby.name }}</h3>
         <p>Owner: {{ lobby.owner.nickname }}</p>
@@ -100,4 +100,10 @@ getLobbies();
 .players {
   font-weight: bold;
 }
+
+.lobbies-container{
+    background: white;
+    color: black;
+}
+
 </style>

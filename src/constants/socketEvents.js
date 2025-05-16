@@ -14,6 +14,8 @@ export const EVENTS = {
         leave_lobby: "leave_lobby_request",
         get_lobbies: "get_lobbies_request",
         message_room: "message_room_request",
+        start_game: "start_game_request",
+        roll: "roll_request",
       },
       response: {
         
@@ -38,6 +40,8 @@ export const EVENTS = {
         leave_lobby: "leave_lobby_response",
         get_lobbies: "get_lobbies_response",
         message_room: "message_room_response",
+        start_game: "start_game_response",
+        roll: "roll_response",
       },
       broadcast: {
         // Server-initiated broadcasts (if needed)
@@ -45,6 +49,7 @@ export const EVENTS = {
       action: {
         message: "message",
         result_messages: "result_messages",
+        send_game_data: "send_game_data",
       },
     },
   };

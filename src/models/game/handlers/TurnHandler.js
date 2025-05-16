@@ -1,22 +1,31 @@
 export class TurnHandler {
-    constructor(totalTurns = 13, maxRollsPerTurn = 3) {
-      this.totalTurns = totalTurns;
-      this.maxRollsPerTurn = maxRollsPerTurn;
-  
-      this.turnsLeft = totalTurns;
-      this.rollsLeft = maxRollsPerTurn;
+    constructor() {
+      this.turnsLeft = null;
+      this.rollsLeft = null;
+      this.totalTurns = null;
+      this.rollsPerTurn = null;
     }
   
+    init(){
+      this.turnsLeft = this.totalTurns;
+      this.rollsLeft = this.rollsPerTurn;
+    }
+
+    useRuleset({totalTurns, rollsPerTurn}){
+      this.totalTurns = totalTurns;
+      this.rollsPerTurn = rollsPerTurn;
+    }
+
     nextTurn() {
       if (this.turnsLeft > 0) {
         this.turnsLeft--;
-        this.rollsLeft = this.maxRollsPerTurn;
+        this.rollsLeft = this.rollsPerTurn;
       } else {
         throw new Error("No turns left.");
       }
     }
   
-    useRoll() {
+    roll() {
       if (this.rollsLeft > 0) {
         this.rollsLeft--;
       } else {
@@ -25,7 +34,7 @@ export class TurnHandler {
     }
   
     resetRolls() {
-      this.rollsLeft = this.maxRollsPerTurn;
+      this.rollsLeft = this.rollsPerTurn;
     }
   
     getTurnsLeft() {
@@ -43,5 +52,8 @@ export class TurnHandler {
     hasRollsLeft() {
       return this.rollsLeft > 0;
     }
+
+    hasRolled(){
+      return this.rollsLeft < this.rollsPerTurn;
+    }
   }
-  

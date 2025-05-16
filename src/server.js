@@ -15,6 +15,8 @@ import { REFUSED } from "dns";
 import { TABLES } from "./database/dbTableNames.js";
 import { test } from "./utils/Test.js";
 import { GameManager } from "./models/game/managers/GameManager.js";
+import { Game } from "./models/game/models/Game.js";
+import { Player } from "./models/game/models/Player.js";
 
 console.log(`Starting server at ${Date.now().toLocaleString()}`);
 
@@ -24,6 +26,8 @@ const PORT = 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicFolderPath = path.join(__dirname, '../public');
+
+const socketPlayerMap = new Map();
 
 const server = http.createServer(app);
 const io = new SocketServer(server, {
@@ -39,6 +43,7 @@ const io = new SocketServer(server, {
 });
 
 const lobbiesMap = new Map();
+const gamesMap = new Map();
 
 console.log(path.join(__dirname, "../node_modules/socket.io-client/dist/socket.io.min.js"));
 
@@ -85,8 +90,8 @@ io.use((socket, next) => {
 
 // Set up a simple connection event
 io.on("connection", (socket) => {
-  console.log(`a user connected with socket id: ${socket.id}`);
-
+  console.log(`A user connected with socket id: ${socket.id}`);
+  socket.player = null;
   // Listening for a message from the client
   socket.on(EVENTS.client.action.message, (data) => {
     console.log("Message received:", data);
@@ -96,9 +101,22 @@ io.on("connection", (socket) => {
 
   // Handle disconnect event
   socket.on(EVENTS.client.action.disconnect, () => {
-    console.log("user disconnected");
+    console.log(`A user disconnected with socket id: ${socket.id}`);
   });
 
+  socket.on(EVENTS.client.request.start_game, (room) => {
+    console.log("starting game");
+    makeNewGame({socket: socket, room: room});
+    socket.emit(EVENTS.server.response.start_game, "starting game");
+  });
+
+  socket.on(EVENTS.client.request.roll, () => {
+    const player = socketPlayerMap.get(socket);
+    player.roll();
+    socket.emit(EVENTS.server.response.roll, "rolling");
+    socket.emit(EVENTS.server.action.send_game_data, getGameData({socket: socket}).unwrapOr());
+  });
+  
   socket.on(EVENTS.client.request.message_room, ({room, message}) => {
     console.log("sending a message to room", room);
     socket.to(room).emit(EVENTS.client.broadcast.message_room, {sender: socket.user.nickname, message: message});
@@ -203,4 +221,44 @@ server.listen(PORT, () => {
 
 });
 
+const players = new Set();
+for(let i = 0; i < 4; i++){
+  players.add(new Player);
+}
+
+
 const gameManager = new GameManager();
+gameManager.init(players)
+
+for(let i = 0; i < 4; i++){
+  gameManager.turnManager.next();
+}
+
+console.log(gameManager.turnManager);
+
+function makeNewGame({socket, room}){
+  const player = new Player();
+  player.room = room;
+  const players = new Set([player]);
+  const gameManager = new GameManager();
+  gameManager.init();
+  gameManager.addPlayer(player);
+  gameManager.start();
+  gamesMap.set(room, gameManager);
+  socketPlayerMap.set(socket, player);
+}
+
+function getGameData({socket}){
+  const player = socketPlayerMap.get(socket);
+  const room = player.room;
+  const gameManager = gamesMap.get(room);
+  const gameDataResult = gameManager.getGameDataOfPlayer(player);
+  return gameDataResult;
+}
+/*
+const game = new Game();
+console.log(game.useRuleset(Game.defaultRuleset));
+console.log(game); 
+console.log(game.init());
+console.log(game);
+*/

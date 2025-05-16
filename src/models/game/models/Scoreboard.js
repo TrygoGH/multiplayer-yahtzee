@@ -1,8 +1,7 @@
-import {CATEGORIES} from "../constants/Catagories.js";
 import {Result} from "../../../utils/Result.js";
 
 export class Scoreboard {
-    constructor(initialScores = {}) {
+    constructor(initialScores) {
       this.scores = {
         ones: null,
         twos: null,
@@ -17,21 +16,37 @@ export class Scoreboard {
         large_straight: null,
         yahtzee: null,
         chance: null,
-        ...initialScores,
       };
+
+      this.total = 0;
+      if(initialScores){
+        this.init(initialScores);
+      }
+    }
+
+    init(initialScores = {}){
+      this.scores = {
+        ...initialScores,
+      }
+      this.calculateTotal();
     }
 
     getScores() {
         return { ...this.scores };
     }
 
-    score(category, value){
-        if (!Object.hasOwn(CATEGORIES, category)) return Result.failure(`Category "${category}" does not exist`);
-        if (this.scores[category] !== null) return Result.failure(`Category "${category}" already has a score`);
-        if (typeof value !== 'number') return Result.failure(`Invalid score value for "${category}"`);
-        
+    score({category, value}){
         this.scores[category] = value;
-        return Result.success(`Scored ${value} in "${category}" successfully`)
+        this.calculateTotal();
+    }
+
+    calculateTotal(){
+      let total = 0;
+      this.scores.forEach(score => {
+        total += score;
+      });
+
+      this.total = total;
     }
 }
 

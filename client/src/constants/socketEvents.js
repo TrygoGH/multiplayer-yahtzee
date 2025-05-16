@@ -4,7 +4,7 @@ Event Types:
 - action: One-way actions that don't expect a response (e.g., "disconnect", "message").
 - request: A client or server is requesting data or an operation. Expects a corresponding response event.
 - response: Sent in reply to a request. Should be handled by the original requester.
-- broadcast: Sent to multiple clients (e.g., a room or all clients). Can be combined with other types if needed.
+- broadcast: Sent to a room/multiple clients. Can be combined with other types if needed.
 */
 
 export const EVENTS = {
@@ -14,9 +14,11 @@ export const EVENTS = {
         leave_lobby: "leave_lobby_request",
         get_lobbies: "get_lobbies_request",
         message_room: "message_room_request",
+        start_game: "start_game_request",
+        roll: "roll_request",
       },
       response: {
-
+        
       },
       broadcast: {
         message_room: "message_room_broadcast",
@@ -38,6 +40,8 @@ export const EVENTS = {
         leave_lobby: "leave_lobby_response",
         get_lobbies: "get_lobbies_response",
         message_room: "message_room_response",
+        start_game: "start_game_response",
+        roll: "roll_response",
       },
       broadcast: {
         // Server-initiated broadcasts (if needed)
@@ -45,6 +49,7 @@ export const EVENTS = {
       action: {
         message: "message",
         result_messages: "result_messages",
+        send_game_data: "send_game_data",
       },
     },
   };

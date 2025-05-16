@@ -68,8 +68,9 @@
   }
   
   function startGame() {
+    console.log(EVENTS.client.request.start_game);
+    socket.emit(EVENTS.client.request.start_game, lobbyTracker.current.id);
     console.log("Start game requested")
-    router.push({ name: 'Game' }) 
   }
   
   onMounted(() => {
@@ -77,6 +78,10 @@
     socket.on(EVENTS.client.broadcast.message_room, ({ sender, message }) => {
       console.log(`got message! ${message}`);
       appendMessage(sender, message)
+    })
+
+    socket.on(EVENTS.server.response.start_game, () => {
+      router.push({ name: 'Game' }) 
     })
   })
   </script>

@@ -1,4 +1,4 @@
-class User {
+export class User {
   constructor({id, username = "Guest", nickname = "Player"}) {
     this.id = id; // Unique ID for persistence
     this.username = username;

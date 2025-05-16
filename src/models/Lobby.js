@@ -1,6 +1,5 @@
-import User from "./User.js";
-import Player from "./Player.js";
-import Result from "../utils/Result.js";
+import { User } from "./User.js";
+import { Result}  from "../utils/Result.js";
 
 /**
  * @typedef {Object} Lobby

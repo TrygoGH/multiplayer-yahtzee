@@ -6,46 +6,52 @@ export let socket = null;
 export const lobbiesMapCache = new Map();
 export const lobbyTracker = { current: null };
 export const EVENTS = {
-  client: {
-    request: {
-      join_lobby: "join_lobby_request",
-      leave_lobby: "leave_lobby_request",
-      get_lobbies: "get_lobbies_request",
-      message_room: "message_room_request",
+    client: {
+      request: {
+        join_lobby: "join_lobby_request",
+        leave_lobby: "leave_lobby_request",
+        get_lobbies: "get_lobbies_request",
+        message_room: "message_room_request",
+        start_game: "start_game_request",
+        roll: "roll_request",
+      },
+      response: {
+        
+      },
+      broadcast: {
+        message_room: "message_room_broadcast",
+      },
+      action: {
+        connect: "connection",
+        disconnect: "disconnect",
+        message: "message",
+        update_lobby: "update_lobby",
+      },
     },
-    response: {
-
+  
+    server: {
+      request: {
+        // Server-to-client requests, if any
+      },
+      response: {
+        join_lobby: "join_lobby_response",
+        leave_lobby: "leave_lobby_response",
+        get_lobbies: "get_lobbies_response",
+        message_room: "message_room_response",
+        start_game: "start_game_response",
+        roll: "roll_response",
+      },
+      broadcast: {
+        // Server-initiated broadcasts (if needed)
+      },
+      action: {
+        message: "message",
+        result_messages: "result_messages",
+        send_game_data: "send_game_data",
+      },
     },
-    broadcast: {
-      message_room: "message_room_broadcast",
-    },
-    action: {
-      connect: "connection",
-      disconnect: "disconnect",
-      message: "message",
-      update_lobby: "update_lobby",
-    },
-  },
-
-  server: {
-    request: {
-      // Server-to-client requests, if any
-    },
-    response: {
-      join_lobby: "join_lobby_response",
-      leave_lobby: "leave_lobby_response",
-      get_lobbies: "get_lobbies_response",
-      message_room: "message_room_response",
-    },
-    broadcast: {
-      // Server-initiated broadcasts (if needed)
-    },
-    action: {
-      message: "message",
-      result_messages: "result_messages",
-    },
-  },
-};
+  };
+  
 
 function setupSocket(socket){
   socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {

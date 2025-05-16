@@ -78,8 +78,7 @@ const rollsLeft = ref(playerGameData.rollsLeft)
 
 function rollDice() {
   //send socket event
-  console.log(rollsLeft);
-  rollsLeft.value--
+  socket.emit(EVENTS.client.request.roll);
 }
 
 function toggleHold(die) {
@@ -114,6 +113,10 @@ function leaveLobby() {
 onMounted(() => {
   socket.on(EVENTS.client.broadcast.message_room, ({ sender, message }) => {
     appendMessage(sender, message)
+  })
+
+  socket.on(EVENTS.server.action.send_game_data, (gameData) => {
+    console.log("sGameData", gameData);
   })
 })
 </script>
