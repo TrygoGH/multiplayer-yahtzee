@@ -16,6 +16,8 @@ export const EVENTS = {
         message_room: "message_room_request",
         start_game: "start_game_request",
         roll: "roll_request",
+        toggle_hold: "toggle_hold_request",
+        score: "score_request",
       },
       response: {
         
@@ -42,6 +44,7 @@ export const EVENTS = {
         message_room: "message_room_response",
         start_game: "start_game_response",
         roll: "roll_response",
+        score: "score_response",
       },
       broadcast: {
         // Server-initiated broadcasts (if needed)
@@ -50,6 +53,7 @@ export const EVENTS = {
         message: "message",
         result_messages: "result_messages",
         send_game_data: "send_game_data",
+        send_to_home: "send_to_home",
       },
     },
   };

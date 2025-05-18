@@ -7,7 +7,11 @@ export class DiceHandler {
   }
 
   init() {
-    this.dice = Array(this.numDice).fill(new Die({})); // start all dice as 1
+    this.dice = [];
+    for(let i = 0; i < this.numDice; i++){
+      this.dice.push(this.createDie());
+    }
+    this.rollDice();
   }
 
   useRuleset({ numDice = 5, sides = 6 } = {}) {
@@ -15,10 +19,20 @@ export class DiceHandler {
     this.sides = sides;
   }
 
+  createDie(){
+    const die = new Die({
+        value: 1,
+        sides: this.sides,
+        isHeld: false,
+      });
+    return die;
+  }
+
   rollDice() {
     this.dice.forEach((die) => {
       if (!die.isHeld) {
-        die.value = Math.floor(Math.random() * die.sides) + 1;
+        const value = Math.random() * die.sides;
+        die.value = Math.floor(value) + 1;
       }
     })
   }
@@ -38,7 +52,7 @@ export class DiceHandler {
     if (isValidDieIndexResult.isFailure()) return isValidDieIndexResult;
 
     const die = this.dice[index];
-    this.holdDie(!die.isHeld);
+    this.holdDie(index, !die.isHeld);
 
     return Result.success(die.isHeld);
   }

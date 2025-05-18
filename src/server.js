@@ -112,8 +112,35 @@ io.on("connection", (socket) => {
 
   socket.on(EVENTS.client.request.roll, () => {
     const player = socketPlayerMap.get(socket);
+    if(!player) {
+      sendToHome(socket);
+      return;
+    }
     player.roll();
     socket.emit(EVENTS.server.response.roll, "rolling");
+    socket.emit(EVENTS.server.action.send_game_data, getGameData({socket: socket}).unwrapOr());
+  });
+
+    socket.on(EVENTS.client.request.toggle_hold, (index) => {
+    const player = socketPlayerMap.get(socket);
+    if(!player) {
+      sendToHome(socket);
+      return;
+    }
+    player.toggleHoldDie(index);
+    //socket.emit(EVENTS.server.response.roll, "rolling");
+    socket.emit(EVENTS.server.action.send_game_data, getGameData({socket: socket}).unwrapOr());
+  });
+
+   socket.on(EVENTS.client.request.score, (category) => {
+    console.log("score", category);
+    const player = socketPlayerMap.get(socket);
+    if(!player) {
+      sendToHome(socket);
+      return;
+    }
+    player.score(category);
+    socket.emit(EVENTS.server.response.score, "rolling");
     socket.emit(EVENTS.server.action.send_game_data, getGameData({socket: socket}).unwrapOr());
   });
   
@@ -211,6 +238,11 @@ function lobbyToLobbySchema(lobby) {
       max_players: lobby.maxPlayers,
       created_at: lobby.timestamp,
   });
+}
+
+function sendToHome(socket){
+  console.log(`Sending socket with id: ${socket.id} to home`);
+  socket.emit(EVENTS.server.action.send_to_home);
 }
 
 // Start the server on port 3000

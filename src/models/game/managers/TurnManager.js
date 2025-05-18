@@ -8,7 +8,6 @@ export class TurnManager{
 
     init(){
         this.playerTurnIndex = 0;
-        this.playerList = new Set();
     }
 
     addPlayer(player){
@@ -22,10 +21,13 @@ export class TurnManager{
     }
 
     getCurrentPlayer(){
-        return this.playerList[this.playerTurnIndex];
+        const playerArray = [...this.playerList];
+        return playerArray[this.playerTurnIndex];
     }
 
     isPlayerTurn(player){
-        return this.playerList[this.playerTurnIndex] === player;
+        const playerArray = [...this.playerList];
+        const isPlayerTurn = playerArray[this.playerTurnIndex] == player;
+        return isPlayerTurn;
     }
 }

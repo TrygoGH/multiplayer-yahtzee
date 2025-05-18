@@ -52,12 +52,16 @@ export class Game {
 
     roll() {
         this.turnHandler.roll();
+        this.diceHandler.rollDice();
+        return Result.success("rolled");
     }
 
     toggleHoldDie(index) {
-        if (!this.turnHandler.hasRolled()) return;
+        if (!this.turnHandler.hasRolled()) return Result.failure("not rolled");
 
-        this.diceHandler.toggleHoldDie(index);
+        const toggleDieResult = this.diceHandler.toggleHoldDie(index);
+
+        return toggleDieResult;
     }
 
     score(category) {
@@ -76,7 +80,8 @@ export class Game {
 
     nextTurn(){
         this.turnHandler.nextTurn();
-        this.scoreboardHandler
+        this.diceHandler.resetHeld();
+        console.log("NEXT TURN", this.turnHandler);
     }
 
       /**

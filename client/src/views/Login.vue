@@ -20,7 +20,7 @@
   </template>
   
   <script setup>
-  import { ref } from 'vue'
+  import { onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { connectSocket } from '@/services/socketService'
   
@@ -49,6 +49,13 @@
     connectSocket(mockUser)
     router.push('/lobby-select')
   }
+
+  onMounted(() =>{
+      const storedAuthData = sessionStorage.getItem("authData");
+      if(!storedAuthData) return;
+
+      router.push({name: "LobbySelect"});
+  })
   </script>
   
   <style scoped>

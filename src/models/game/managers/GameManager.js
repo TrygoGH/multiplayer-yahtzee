@@ -24,11 +24,14 @@ export class GameManager {
     }
 
     addPlayer(player) {
-        player.onRoll = () => this.roll(player);
-        player.onToggleHoldDie = (index) => this.toggleHoldDie(player, index);
-        player.onScore = (category) => this.score(player, category);
+        player.onRoll = (player) => {  console.log("rolling for", player);
+            this.roll(player);
+        }
+        player.onToggleHoldDie = (player, index) => this.toggleHoldDie(player, index);
+        player.onScore = (player, category) => this.score(player, category);
 
         this.playerGames.set(player, null);
+        this.turnManager.addPlayer(player);
     }
 
     initPlayerGame(player) {
@@ -40,6 +43,7 @@ export class GameManager {
     }
 
     roll(player) {
+        console.log("roll2");
         const isPlayerTurnResult = this.isPlayerTurn(player);
         if (isPlayerTurnResult.isFailure()) return isPlayerTurnResult;
 
@@ -48,6 +52,8 @@ export class GameManager {
 
         const game = gameResult.unwrap();
         const scoreResult = game.roll();
+
+        console.log(scoreResult);
 
         return scoreResult;
 
@@ -61,7 +67,7 @@ export class GameManager {
         if (gameResult.isFailure()) return gameResult;
 
         const game = gameResult.unwrap();
-        const scoreResult = game.score();
+        const scoreResult = game.toggleHoldDie(index);
 
         return scoreResult;
     }
@@ -74,9 +80,12 @@ export class GameManager {
         if (gameResult.isFailure()) return gameResult;
 
         const game = gameResult.unwrap();
-        const scoreResult = game.score();
+        const scoreResult = game.score(category);
 
-        return scoreResult;
+        if(scoreResult.isFailure()) return scoreResult;
+        
+        game.nextTurn();
+        this.turnManager.next();
     }
 
     isPlayerTurn(player) {
@@ -93,14 +102,13 @@ export class GameManager {
         if (!hasGame) return Result.failure(`Player ${player} does not have a game`);
 
         const game = this.playerGames.get(player);
-        console.log("ga", this.playerGames);
         return Result.success(game);
     }
 
     getGameDataOfPlayer(player){
         const gameResult = this.getGameOfPlayer(player)
         if(gameResult.isFailure()) return gameResult;
-        console.log(gameResult);
+
         const game = gameResult.unwrap();
         const gameData = game.getGameData();
 

@@ -8,11 +8,11 @@
     <!-- Dice display -->
     <div class="dice-area">
       <div
-        v-for="(die, idx) in dice"
+        v-for="(die, idx) in gameData.dice"
         :key="idx"
         class="die"
         :class="{ held: die.isHeld }"
-        @click="toggleHold(die)"
+        @click="toggleHold(idx)"
       >
         {{ die.value }}
       </div>
@@ -20,10 +20,24 @@
 
     <!-- Roll Dice button -->
     <div class="controls">
-      <button @click="rollDice" :disabled="rollsLeft === 0">
-        Roll Dice ({{ rollsLeft }} left)
+      <button @click="rollDice" :disabled="gameData.rollsLeft === 0">
+        Roll Dice ({{ gameData.rollsLeft }} left)
       </button>
     </div>
+
+    <div class="scoreboard">
+  <h2>Scoreboard</h2>
+  <div class="score-row" v-for="(value, category) in gameData.scores" :key="category">
+    <span class="category-name">{{ category.replaceAll('_', ' ') }}</span>
+    <button
+      class="score-value"
+      :disabled="gameData.scoredScores.scores[category] !== null"
+      @click="score(category)"
+    >
+      {{ possibleScores[category] ?? '-' }}
+    </button>
+  </div>
+</div>
 
     <!-- Chat section -->
     <div class="chat-section">
@@ -61,29 +75,20 @@ const chatMessage = ref('')
 const chatBox = ref(null)
 
 // Dice handler instance
-const playerGameData = new PlayerGameData({
-  dice: [
-    {value: Math.floor(Math.random() * 6) + 1, isHeld: false},
-    {value: Math.floor(Math.random() * 6) + 1, isHeld: false},
-    {value: Math.floor(Math.random() * 6) + 1, isHeld: false},
-    {value: Math.floor(Math.random() * 6) + 1, isHeld: false},
-    {value: Math.floor(Math.random() * 6) + 1, isHeld: false},
-  ],
-  rollsLeft: 3
-});
-console.log("dice", playerGameData);
-const dice = ref(playerGameData.dice)
-const rollsLeft = ref(playerGameData.rollsLeft)
-
+const gameData = ref(new PlayerGameData({}));
+const possibleScores = ref({});
 
 function rollDice() {
   //send socket event
   socket.emit(EVENTS.client.request.roll);
 }
 
-function toggleHold(die) {
-  die.isHeld = !die.isHeld;
-  console.log(playerGameData.dice);
+function toggleHold(index) {
+  socket.emit(EVENTS.client.request.toggle_hold, index);
+}
+
+function score(category) {
+  socket.emit(EVENTS.client.request.score, category);
 }
 
 function sendMessage() {
@@ -110,14 +115,37 @@ function leaveLobby() {
   router.push({ name: 'LobbySelect' })
 }
 
+function updatePlayerGameData(target, source) {
+  Object.keys(target).forEach(key => {
+    if (key in source) {
+      target[key] = source[key];
+    }
+  });
+
+  possibleScores.value = gameData.value.scores;
+}
+
+function initPlayer(){
+  toggleHold(0);
+}
+
 onMounted(() => {
+  console.log(EVENTS.server.action.send_to_home);
+  socket.on(EVENTS.server.action.send_to_home, () =>{
+  console.log("home");
+    router.push({ name: 'LobbySelect' }) 
+  })
+
   socket.on(EVENTS.client.broadcast.message_room, ({ sender, message }) => {
     appendMessage(sender, message)
   })
 
-  socket.on(EVENTS.server.action.send_game_data, (gameData) => {
-    console.log("sGameData", gameData);
+  socket.on(EVENTS.server.action.send_game_data, (newGameData) => {
+    updatePlayerGameData(gameData.value, newGameData);
+    console.log(gameData.value);
   })
+
+  initPlayer();
 })
 </script>
 
@@ -202,4 +230,34 @@ onMounted(() => {
 .chat-input button {
   padding: 8px 16px;
 }
+
+.scoreboard {
+  margin-top: 30px;
+  border-top: 1px solid #ccc;
+  padding-top: 15px;
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.category-name {
+  text-transform: capitalize;
+}
+
+.score-value {
+  background: #e0f7fa;
+  border: 1px solid #26c6da;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.score-value:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
 </style>

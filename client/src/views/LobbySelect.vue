@@ -83,6 +83,11 @@ socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {
   }
 });
 
+  socket.on(EVENTS.server.action.send_to_home, () =>{
+  console.log("home");
+    router.push({ name: 'LobbySelect' }) 
+  })
+
 }
 
 // Call getLobbies to populate the list on load

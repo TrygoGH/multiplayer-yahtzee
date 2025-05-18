@@ -1,3 +1,5 @@
+import Result from "../../../utils/Result.js";
+
 export class TurnHandler {
     constructor() {
       this.turnsLeft = null;
@@ -17,20 +19,20 @@ export class TurnHandler {
     }
 
     nextTurn() {
-      if (this.turnsLeft > 0) {
-        this.turnsLeft--;
-        this.rollsLeft = this.rollsPerTurn;
-      } else {
-        throw new Error("No turns left.");
-      }
+      if (!this.turnsLeft > 0) return Result.failure("No turns left");
+      
+      this.turnsLeft--;
+      this.resetRolls();
+
+      return Result.success(this.turnsLeft);
     }
   
     roll() {
-      if (this.rollsLeft > 0) {
-        this.rollsLeft--;
-      } else {
-        throw new Error("No rolls left.");
-      }
+      if (!this.rollsLeft > 0) return Result.failure("No rolls left");
+      
+      this.rollsLeft--;
+
+      return Result.success(this.rollsLeft);
     }
   
     resetRolls() {
