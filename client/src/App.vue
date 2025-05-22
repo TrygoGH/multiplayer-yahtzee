@@ -1,9 +1,11 @@
 <script setup>
 import LobbySelect from './views/LobbySelect.vue'
 import { getLobbies, joinLobby, handleText, lobbyTracker, lobbiesMapCache, socket } from './services/socketService.js'
+import NavBar from './components/NavBar.vue'
 </script>
 
 <template>
+    <NavBar />
     <router-view />
 </template>
 
