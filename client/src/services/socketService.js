@@ -16,6 +16,7 @@ export const EVENTS = {
         roll: "roll_request",
         toggle_hold: "toggle_hold_request",
         score: "score_request",
+        make_lobby: "make_lobby_request",
       },
       response: {
         

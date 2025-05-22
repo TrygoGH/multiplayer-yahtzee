@@ -2,7 +2,7 @@
   <div>
     <h1>Lobby Select</h1>
     <div>
-      <button id="sendMessage" @click="sendMessage">Send Message to Server</button>
+      <button id="sendMessage" @click="sendMessage">Create Lobby</button>
     </div>
     <div>
       <p id="response">{{ responseMessage }}</p>
@@ -43,7 +43,8 @@ const router = useRouter();
 
 // Methods
 const sendMessage = () => {
-  socket.emit(EVENTS.client.action.message, "Hello from client!");
+  console.log(EVENTS.client.request.make_lobby);
+  socket.emit(EVENTS.client.request.make_lobby, {name: `Lobby ${Math.floor(Math.random() * 10000)}`});
 };
 
 const sendText = () => {
@@ -70,6 +71,7 @@ socket.on(EVENTS.client.broadcast.message_room, ({ sender, message }) => {
 
 socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
   lobbies.value = lobbyValues.map(lobby => Lobby.fromObject(lobby));
+  console.log(lobbies.value);
 });
 
 socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {

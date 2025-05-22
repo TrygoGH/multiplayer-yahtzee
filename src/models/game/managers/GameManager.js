@@ -15,16 +15,17 @@ export class GameManager {
         this.turnManager.init()
     }
 
-    start(){
+    start() {
         console.log(this.playerGames.keys());
-        for(const player of this.playerGames.keys()){
+        for (const player of this.playerGames.keys()) {
             this.initPlayerGame(player);
-                   console.log("GAMESSSS2");
+            console.log("GAMESSSS2");
         }
     }
 
     addPlayer(player) {
-        player.onRoll = (player) => {  console.log("rolling for", player);
+        player.onRoll = (player) => {
+            console.log("rolling for", player);
             this.roll(player);
         }
         player.onToggleHoldDie = (player, index) => this.toggleHoldDie(player, index);
@@ -82,8 +83,8 @@ export class GameManager {
         const game = gameResult.unwrap();
         const scoreResult = game.score(category);
 
-        if(scoreResult.isFailure()) return scoreResult;
-        
+        if (scoreResult.isFailure()) return scoreResult;
+
         game.nextTurn();
         this.turnManager.next();
     }
@@ -105,9 +106,22 @@ export class GameManager {
         return Result.success(game);
     }
 
-    getGameDataOfPlayer(player){
+    hasMatchEnded() {
+        for (const game of this.playerGames.values()) {
+            if (game === null) {
+                return Result.failure("One or more players do not have an active game");
+            }
+            if (!game.hasEnded()) {
+                return Result.success(false);
+            }
+        }
+
+        return Result.success(true);
+    }
+
+    getGameDataOfPlayer(player) {
         const gameResult = this.getGameOfPlayer(player)
-        if(gameResult.isFailure()) return gameResult;
+        if (gameResult.isFailure()) return gameResult;
 
         const game = gameResult.unwrap();
         const gameData = game.getGameData();
