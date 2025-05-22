@@ -42,14 +42,16 @@ class Lobby {
       owner: lobbyData.owner,
       maxPlayers: lobbyData.maxPlayers
     });
-
+    
     // Restore players if needed
     if (Array.isArray(lobbyData.players)) {
+      /*
       lobby.players = lobbyData.players.map(playerData => 
-        new Player(playerData.user, playerData.socket) // Assuming Player constructor works this way
+        new User(playerData.user, playerData.socket) // Assuming Player constructor works this way
       );
+      */
     }
-
+    
     return lobby;
   }
 
@@ -65,7 +67,7 @@ class Lobby {
   }
 
   removePlayer(playerId) {
-    this.players = this.players.filter(player => player.user.id !== playerId);
+    this.players = this.players.filter(player => player.id !== playerId);
   }
 
   getPlayer(index) {

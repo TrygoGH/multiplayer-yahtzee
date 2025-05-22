@@ -84,6 +84,12 @@ export class Game {
         console.log("NEXT TURN", this.turnHandler);
     }
 
+    hasGameEnded(){
+        const allScored = this.scoreboardHandler.scoreboard.hasScoredAll();
+        const noTurns = this.turnHandler.getTurnsLeft() < 1;
+        return allScored && noTurns;
+    }
+
       /**
    * Returns a Scoreboard object with actual scores overriding possible scores.
    * @returns {Scoreboard} A new Scoreboard instance with combined values.

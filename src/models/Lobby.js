@@ -44,27 +44,27 @@ class Lobby {
 
     // Restore players if needed
     if (Array.isArray(lobbyData.players)) {
+            /*
       lobby.players = lobbyData.players.map(playerData => 
-        new Player(playerData.user, playerData.socket) // Assuming Player constructor works this way
+        new User(playerData.user, playerData.socket) // Assuming Player constructor works this way
       );
+      */
     }
 
     return lobby;
   }
 
-  addPlayer(socket, user) {
-    if (this.players.length >= this.maxPlayers) {
-      return new Result(false, null, "Lobby is full");
-    }
+  addPlayer({user}) {
+    console.log("added user", user);
+    if (this.players.length >= this.maxPlayers) return new Result.failure("Lobby is full");
 
-    const player = new Player(user, socket);
-    this.players.push(player);
-
-    return new Result(true, player);
+    this.players.push(user);
+    return Result.success("Added player")
   }
 
-  removePlayer(playerId) {
-    this.players = this.players.filter(player => player.user.id !== playerId);
+  removePlayer({user}) {
+    console.log("a", this.players);
+    this.players = this.players.filter(player => player.id !== user.id);
   }
 
   getPlayer(index) {

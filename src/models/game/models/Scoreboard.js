@@ -40,6 +40,11 @@ export class Scoreboard {
     this.calculateTotal();
   }
 
+  hasScoredAll(){
+    const hasNull = Object.values(obj).some(value => value === null);
+    return !hasNull;
+  }
+
   calculateTotal() {
     let total = 0;
     
