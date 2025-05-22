@@ -4,7 +4,7 @@ import Login from '@/views/Login.vue'
 import Lobby from '@/views/Lobby.vue'
 import Game from '@/views/Game.vue'
 
-const routes = [
+export const routes = [
     {
       path: '/',
       name: 'Login',
@@ -25,7 +25,7 @@ const routes = [
       name: 'Game',
       component: Game,
   }
-  ]
+]
 
 const router = createRouter({
   history: createWebHistory(),

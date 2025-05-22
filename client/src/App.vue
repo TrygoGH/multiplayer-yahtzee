@@ -10,6 +10,10 @@ import NavBar from './components/NavBar.vue'
 </template>
 
 <style scoped>
+main {
+  padding-top: 60px; /* or match the height of your navbar */
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;

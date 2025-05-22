@@ -54,7 +54,7 @@ export class Result {
  * @param {Promise<T>} promise - The promise to execute.
  * @returns {Promise<Result<T, E>>} A Result object containing either the resolved data or an error.
  */
-export async function tryCatch(promise) {
+export async function tryCatchAsync(promise) {
   try {
     const data = await promise;
     return Result.success(data);
@@ -62,6 +62,26 @@ export async function tryCatch(promise) {
     return Result.failure(error);
   }
 }
+
+/**
+ * Wraps a synchronous function in a try-catch block and returns a Result object.
+ *
+ * @template T The type of the successful data.
+ * @template E The type of the error.
+ * @param {() => T} fn - The function to execute.
+ * @returns {Result<T, E>} A Result object containing either the result or an error.
+ */
+export function tryCatch(fn) {
+  try {
+    const data = fn();
+    return Result.success(data);
+  } catch (error) {
+    return Result.failure(error);
+  }
+
+  return Result.failure("Somehow bypassed the try-catch");
+}
+
 
 export default Result;
  

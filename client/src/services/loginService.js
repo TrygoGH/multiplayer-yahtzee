@@ -12,8 +12,9 @@ export function getAuthData(){
 
 export function hasLoggedIn(){
     const getAuthDataResult = getAuthData();
-    const hasLoggedIn = getAuthDataResult.isSuccess();
-    return hasLoggedIn;
+    return getAuthDataResult.isSuccess() 
+    ? Result.success("User has logged in")
+    : Result.success("User hasn't logged in");
 }
 
 export function logout(){
