@@ -500,19 +500,6 @@ async function leaveChannel({ socket, channelName, channelID }) {
 }
 
 async function replaceChannel({ socket, channelName, channelID }) {
-  const test = await getSessionDataBySocket(socket)
-      .bindAsync(async sessionData => {
-        const { socketGroup, channels } = sessionData;
-
-        await socketGroup.forEachAsync(async socket => {
-          await leaveRoom(socket, channels);
-          await joinRoom(socket, channelID);
-        });
-
-        channels[channelName] = channelID;
-        return Result.success("Replaced channel");
-      })
-
   const result = await tryCatchAsyncFlex(async () =>
     await getSessionDataBySocket(socket)
       .bindAsync(async sessionData => {
@@ -528,7 +515,6 @@ async function replaceChannel({ socket, channelName, channelID }) {
         return Result.success("Replaced channel");
       })
   );
-  console.log("result of replace", await result.unwrap()())
   return result;
 }
 
