@@ -9,8 +9,6 @@ import { Result } from "../../../utils/Result.js";
 import { PlayerGameData } from "./PlayerGameData.js";
 
 export class Game {
-    static defaultRuleset = new GameRules();
-
     constructor() {
         this.gameRules = null;
         this.diceHandler = new DiceHandler();

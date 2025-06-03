@@ -33,8 +33,19 @@
   import { getSocketSafe, handleText, lobbyTracker, EVENTS} from '@/services/socketService';
   
   const router = useRouter() // Initialize Vue Router
-  
-  const socket = getSocketSafe();
+
+const socket = (() => {
+  try {
+    return getSocketSafe().unwrapOrThrow();
+  } catch (error) {
+    console.error("Failed to get socket:", error);
+    router.push({
+      name: "Login"
+    })
+    return;
+  }
+})();
+
 
   const lobbyName = ref("Example Lobby") // Replace this with actual data from your backend
   const isHost = ref(true) // You'd typically get this info from server

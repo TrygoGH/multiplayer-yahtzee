@@ -1,81 +1,92 @@
 // socketService.js
 import { io } from "socket.io-client"
 import Lobby from "../models/Lobby"
+import { SocketWrapper } from "./socketWrapper";
+import { getAuthData, setAuthData } from "./loginService";
+import Result from "../utils/Result";
 
-export let socket = null;
+let _socket = null;
+let socket = null;
 export const lobbiesMapCache = new Map();
 export const lobbyTracker = { current: null };
 export const EVENTS = {
-    client: {
-      request: {
-        join_lobby: "join_lobby_request",
-        leave_lobby: "leave_lobby_request",
-        get_lobbies: "get_lobbies_request",
-        message_room: "message_room_request",
-        start_game: "start_game_request",
-        roll: "roll_request",
-        toggle_hold: "toggle_hold_request",
-        score: "score_request",
-        make_lobby: "make_lobby_request",
-      },
-      response: {
-        
-      },
-      broadcast: {
-        message_room: "message_room_broadcast",
-      },
-      action: {
-        connect: "connection",
-        disconnect: "disconnect",
-        message: "message",
-        update_lobby: "update_lobby",
-      },
+  client: {
+    request: {
+      join_lobby: "join_lobby_request",
+      leave_lobby: "leave_lobby_request",
+      get_lobbies: "get_lobbies_request",
+      message_room: "message_room_request",
+      start_game: "start_game_request",
+      roll: "roll_request",
+      toggle_hold: "toggle_hold_request",
+      score: "score_request",
+      make_lobby: "make_lobby_request",
+      login: "login_request",
     },
-  
-    server: {
-      request: {
-        // Server-to-client requests, if any
-      },
-      response: {
-        join_lobby: "join_lobby_response",
-        leave_lobby: "leave_lobby_response",
-        get_lobbies: "get_lobbies_response",
-        message_room: "message_room_response",
-        start_game: "start_game_response",
-        roll: "roll_response",
-        score: "score_response",
-      },
-      broadcast: {
-        // Server-initiated broadcasts (if needed)
-      },
-      action: {
-        message: "message",
-        result_messages: "result_messages",
-        send_game_data: "send_game_data",
-        send_to_home: "send_to_home",
-      },
-    },
-  };
-  
+    response: {
 
-function setupSocket(socket){
-  socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
-  lobbiesMapCache.clear()
-  lobbyKeys.forEach((key, index) => {
-    lobbiesMapCache.set(key, lobbyValues[index])
+    },
+    broadcast: {
+      message_room: "message_room_broadcast",
+    },
+    action: {
+      connect: "connection",
+      disconnect: "disconnect",
+      message: "message",
+      update_lobby: "update_lobby",
+    },
+  },
+
+  server: {
+    request: {
+      // Server-to-client requests, if any
+    },
+    response: {
+      join_lobby: "join_lobby_response",
+      leave_lobby: "leave_lobby_response",
+      get_lobbies: "get_lobbies_response",
+      message_room: "message_room_response",
+      start_game: "start_game_response",
+      roll: "roll_response",
+      score: "score_response",
+      login: "login_response",
+    },
+    broadcast: {
+      // Server-initiated broadcasts (if needed)
+    },
+    action: {
+      message: "message",
+      result_messages: "result_messages",
+      send_game_data: "send_game_data",
+      send_to_home: "send_to_home",
+      send_token: "send_token",
+    },
+  },
+};
+
+
+function setupSocket(socket) {
+  socket.on(EVENTS.server.action.send_token, (sessionToken) =>{
+    console.log("got token", sessionToken);
+    console.log(setAuthData(sessionToken));
   })
-  console.log("lobbies", lobbiesMapCache)
-})
+  socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
+    lobbiesMapCache.clear()
+    lobbyKeys.forEach((key, index) => {
+      lobbiesMapCache.set(key, lobbyValues[index])
+    })
+    console.log("lobbies", lobbiesMapCache)
+  })
 
-socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {
-  if (lobbyJoinResult.success) {
-    lobbyTracker.current = lobbyJoinResult.data
-  }
-})
+  socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {
+    if (lobbyJoinResult.success) {
+      lobbyTracker.current = lobbyJoinResult.data
+    }
+  })
 
-socket.on(EVENTS.server.action.send_to_home, () => {
-  console.log("waaaaaaaaa");
-})
+  socket.on(EVENTS.server.action.send_to_home, () => {
+    console.log("waaaaaaaaa");
+  })
 }
 
 // Functions you can call from Vue components
@@ -84,10 +95,7 @@ export function getLobbies() {
 }
 
 export function joinLobby(newLobby) {
-  const currentLobby = lobbyTracker.current
-  const currentLobbyID = currentLobby ? currentLobby.id : null
   const lobbyPackage = {
-    currentLobbyID: currentLobbyID,
     newLobbyID: newLobby.id
   }
   socket.emit(EVENTS.client.request.join_lobby, lobbyPackage)
@@ -106,56 +114,59 @@ export function handleText(text) {
 }
 
 
-export function connectSocket(authData) {
-  socket = io('http://localhost:3000', {
-    auth: authData
+export function connectSocket({token, username, email, nickname} = {}) {
+  _socket = io('http://localhost:3000', {
+    auth: {token, username, email, nickname}
   });
 
-  socket.on('connect_error', (err) => {
+  _socket.on('connect_error', (err) => {
+    _socket.disconnect();
+    _socket = null;
+    if(socket) socket = null;
     console.error('Socket connection error:', err.message);
   });
 
-  sessionStorage.setItem("authData", JSON.stringify(authData));
-
+  socket = wrapSocket(_socket);
   setupSocket(socket);
-  return socket;
+  return Result.success(socket);
 }
 
 export function getSocket() {
-  if (!socket) {
-    throw new Error('Socket not connected yet')
-  }
-  return socket
+  return socket 
+  ? Result.success(socket)
+  : Result.failure("Socket not connected yet");
 }
 
-export function getSocketSafe(){
-  const invalidSocket = (!socket || socket.disconnected);
-  if(!invalidSocket){
+export function getSocketSafe() {
+  const isInvalidSocket = !socket;
+  if (!isInvalidSocket) {
     return getSocket();
   }
 
-  const storedAuthData = sessionStorage.getItem("authData");
+  const getAuthDataResult = getAuthData();
+  if(getAuthDataResult.isFailure()) return Result.failure(getAuthDataResult.error);
 
-  if (!storedAuthData) {
-    throw new Error('Socket not connected yet');
-  }
+  const authData = getAuthDataResult.unwrap();
+  const connectSocketResult = connectSocket(authData);
+  if(connectSocketResult.isFailure()) return connectSocketResult;
 
-  const authData = JSON.parse(storedAuthData);
-  
-  return connectSocket(authData);
+  const connectedSocket = connectSocketResult.unwrap();
+  return Result.success(connectedSocket);
 }
 
-export function replace(eventName, callback) {
-  socket.off(eventName);
-  socket.on(eventName, callback);
+function wrapSocket(socket){
+  return new SocketWrapper(socket);
 }
 
-export function clearAll(socket) {
-  const events = socket.eventNames(); 
-  events.forEach((event) => {
-    socket.off(event); 
-  });
-}
+class SocketError{}
+export class InvalidTokenError extends SocketError {}
+export class TokenExpiredError extends SocketError {}
+export class MissingTokenError extends SocketError {}
+export class UnauthorizedError extends SocketError {} // Generic fallback
+export class ForbiddenError extends SocketError {} // Authenticated but not allowed
+export class ConnectionTimeoutError extends SocketError {}
+export class ConnectionRefusedError extends SocketError {}
+export class ServerUnavailableError extends SocketError {} // e.g., maintenance
 
 /*
 Event Types:

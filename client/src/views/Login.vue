@@ -5,7 +5,7 @@
       <div v-if="mode === 'login'">
         <input v-model="username" placeholder="Username" />
         <input v-model="password" type="password" placeholder="Password" />
-        <button @click="login">Log In</button>
+        <button @click="tryLogin">Log In</button>
       </div>
   
       <div v-else>
@@ -23,7 +23,9 @@
   import { onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { connectSocket } from '@/services/socketService'
-  
+  import { getAuthData, getToken, login } from '../services/loginService'
+import { v4 } from 'uuid'
+
   const router = useRouter()
   const mode = ref('guest') // or 'login'
   
@@ -35,25 +37,39 @@
     mode.value = mode.value === 'login' ? 'guest' : 'login'
   }
   
-  const login = async () => {
+  const tryLogin = async () => {
     // Simulate login + receiving token from backend
     if (!username.value.trim()) return
     const mockUser = {username: username.value, nickname: username.value}
-    connectSocket(mockUser)
+
+    const connectionResult = connectSocket(mockUser);
+    if(connectionResult.isFailure()) return;
+
     router.push('/lobby-select')
   }
   
   const continueAsGuest = () => {
     if (!nickname.value.trim()) return
-    const mockUser = {username: "guest", nickname: nickname.value}
-    connectSocket(mockUser)
+    const guestUsername = `guest${v4()}`;
+    const mockUser = {username: guestUsername, nickname: nickname.value}
+
+    const connectionResult = connectSocket(mockUser);
+    console.log(connectionResult);
+    if(connectionResult.isFailure()) return;
+
     router.push('/lobby-select')
   }
 
   onMounted(() =>{
-      const storedAuthData = sessionStorage.getItem("authData");
-      if(!storedAuthData) return;
+    console.log(localStorage);
+      const getTokenResult = getAuthData();
+      if(getTokenResult.isFailure()) return;
 
+      const {token} = getTokenResult.unwrap();
+      const connectionResult = connectSocket(token);
+      console.log(connectionResult);
+      if(connectionResult.isFailure()) return;
+      
       router.push({name: "LobbySelect"});
   })
   </script>

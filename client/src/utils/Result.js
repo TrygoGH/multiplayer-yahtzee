@@ -37,6 +37,13 @@ export class Result {
     return this.isSuccess() ? this.data : defaultValue;
   }
 
+  unwrapOrThrow(message = 'Operation failed') {
+    if (this.isFailure()) {
+      throw new Error(`${message}: ${this.error}`);
+    }
+    return this.data;
+  }
+
   // Get error or throw if it's a success
   getError() {
     if (this.isFailure()) {
@@ -82,6 +89,72 @@ export function tryCatch(fn) {
   return Result.failure("Somehow bypassed the try-catch");
 }
 
+/**
+ * Wraps a synchronous function in a try-catch block and returns a Result object.
+ *
+ * @template T The type of the successful data.
+ * @template E The type of the error.
+ * @param {Result} result - The function to execute.
+ */
+export function logResult(result) {
+  if (result.isFailure()) {
+    console.error(result.error);
+  }
+  else {
+    console.log(result.data);
+  }
+}
+
+
+function isConstructorMatch(value, typeSpec) {
+  return typeof typeSpec === "function" && typeSpec !== Function && value instanceof typeSpec;
+}
+
+function isSpecificFunctionMatch(value, typeSpec) {
+  return typeof value === "function" && value === typeSpec;
+}
+
+function isFunctionSignatureMatch(value, typeSpec) {
+  if (typeof typeSpec !== "object" || !typeSpec.__function) return false;
+  if (typeof value !== "function") return false;
+  if ("length" in typeSpec && value.length !== typeSpec.length) return false;
+  return true;
+}
+
+function isArrayMatch(value, typeSpec) {
+  if (!Array.isArray(typeSpec)) return false;
+  if (!Array.isArray(value)) return false;
+  if (typeSpec.length === 0) return true; // Accept any array
+  const itemShape = typeSpec[0];
+  return value.every((item) => matchesType(item, itemShape));
+}
+
+function isPlainObjectMatch(value, typeSpec) {
+  if (typeof typeSpec !== "object" || typeSpec === null || typeSpec.__function) return false;
+  if (typeof value !== "object" || value === null) return false;
+  return Object.keys(typeSpec).every((key) => key in value);
+}
+
+// Master type matcher
+function matchesType(value, typeSpec) {
+  return (
+    isConstructorMatch(value, typeSpec) ||
+    isSpecificFunctionMatch(value, typeSpec) ||
+    isFunctionSignatureMatch(value, typeSpec) ||
+    isArrayMatch(value, typeSpec) ||
+    isPlainObjectMatch(value, typeSpec)
+  );
+}
+
+// Result evaluator
+function ensureResult(valueType, errorType, fn) {
+  const result = fn();
+
+  if (matchesType(result, valueType)) return Result.success(result);
+  if (matchesType(result, errorType)) return Result.failure(result);
+
+  throw new Error(`ensureResult: value did not match expected valueType or errorType. Got: ${JSON.stringify(result)}`);
+}
+
 
 export default Result;
- 

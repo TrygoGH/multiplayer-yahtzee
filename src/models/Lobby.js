@@ -1,4 +1,4 @@
-import { User } from "./User.js";
+import { User } from "../domain/user/User.js";
 import { Result}  from "../utils/Result.js";
 
 /**
@@ -25,7 +25,7 @@ class Lobby {
     this.name = name;
     this.owner = owner;
     this.maxPlayers = maxPlayers;
-    this.players = []; // Ordered collection of players
+    this.playerIDs = new Set(); // Ordered collection of players
   }
 
   /**
@@ -42,37 +42,24 @@ class Lobby {
       maxPlayers: lobbyData.maxPlayers
     });
 
-    // Restore players if needed
-    if (Array.isArray(lobbyData.players)) {
-            /*
-      lobby.players = lobbyData.players.map(playerData => 
-        new User(playerData.user, playerData.socket) // Assuming Player constructor works this way
-      );
-      */
-    }
-
     return lobby;
   }
 
-  addPlayer({user}) {
-    console.log("added user", user);
-    if (this.players.length >= this.maxPlayers) return new Result.failure("Lobby is full");
+  addPlayer(userID) {
+    console.log("added user", userID);
+    if (this.playerIDs.length >= this.maxPlayers) return new Result.failure("Lobby is full");
 
-    this.players.push(user);
+    this.playerIDs.add(userID);
     return Result.success("Added player")
   }
 
-  removePlayer({user}) {
-    console.log("a", this.players);
-    this.players = this.players.filter(player => player.id !== user.id);
+  removePlayer(userID) {
+    console.log("a", this.playerIDs);
+    this.playerIDs.delete(userID);
   }
 
   getPlayer(index) {
-    return this.players[index] || null;
-  }
-
-  broadcast(event, data) {
-    this.players.forEach(player => player.sendMessage(event, data));
+    return this.playerIDs[index] || null;
   }
 }
 

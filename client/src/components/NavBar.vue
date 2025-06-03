@@ -3,7 +3,7 @@
     <router-link to="/">Home</router-link>
     <router-link to="/lobby-select">Lobby Select</router-link>
 
-    <button @click="checkAuth" class="auth-btn">
+    <button @click="loginOutButton" class="auth-btn">
       {{ isSignedIn ? 'Sign Out' : 'Sign In' }}
     </button>
   </nav>
@@ -12,20 +12,24 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { hasLoggedIn, } from '../services/loginService'
+import { hasLoggedIn, logout } from '../services/loginService'
 
 const isSignedIn = ref(false)
 const router = useRouter()
+checkAuth();
+
+function loginOutButton(){
+    checkAuth();
+  if (!isSignedIn.value) {
+    router.push('/lobby-select') 
+  } else {
+    console.log(logout());
+    router.push('/') // Navigate to login after sign-out
+  }
+}
 
 function checkAuth() {
   isSignedIn.value = hasLoggedIn().isSuccess();
-
-  if (isSignedIn.value) {
-    router.push('/lobby-select') 
-  } else {
-
-    router.push('/login') // Navigate to login after sign-out
-  }
 }
 </script>
 

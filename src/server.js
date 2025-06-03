@@ -6,18 +6,38 @@ import { Server as SocketServer, Socket } from "socket.io";
 import Lobby from './models/Lobby.js';  // Ensure this path is correct for your project structure
 import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
-import Result from "./utils/Result.js";
+import { Result, ensureResult, tryCatch, tryCatchAsync } from "./utils/Result.js";
 import { getConnection, testConnection } from "./database/database.js";
 import { deleteOldLobbies, deleteAll, getAllUsers, getMySQLDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
-import User from "./models/User.js";
+import User from "./domain/user/User.js";
 import { LobbySchema } from "./database/tables/LobbySchema.js";
 import { REFUSED } from "dns";
 import { TABLES } from "./database/dbTableNames.js";
-import { test } from "./utils/Test.js";
-import { GameManager } from "./models/game/managers/GameManager.js";
-import { Game } from "./models/game/models/Game.js";
-import { Player } from "./models/game/models/Player.js";
+import { Tests } from "./utils/Test.js";
+import { Player } from "./domain/game/models/Player.js";
 import { time } from "console";
+import { UserSocketConnections } from "./domain/user/userSocketConnections.js";
+import { MatchManager } from "./domain/game/managers/MatchManager.js";
+import { LinkMap } from "./utils/Maps.js";
+import { SessionData } from "./domain/session/SessionData.js";
+import { SocketGroup } from "./domain/socket/socketGroup.js";
+import { SessionToken } from "./domain/session/SessionToken.js";
+
+process.on('uncaughtException', (err) => {
+  console.error('🔥 Uncaught Exception:', err);
+  return;
+  Tests.printAll();
+  Tests.summary();
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  return;
+  Tests.printAll();
+  Tests.summary();
+  process.exit(1);
+});
 
 console.log(`Starting server at ${Date.now().toLocaleString()}`);
 
@@ -28,7 +48,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicFolderPath = path.join(__dirname, '../public');
 
-const socketPlayerMap = new Map();
+const tokenToSessionDataMap = new Map();
+const connectedUsersMap = new Map();
+const userIDtoSessionTokenMap = new Map();
+const tokensToUserIdMap = new Map();
+const userPlayersMap = new Map();
+const userSocketConnections = new UserSocketConnections();
 
 const server = http.createServer(app);
 const io = new SocketServer(server, {
@@ -44,7 +69,7 @@ const io = new SocketServer(server, {
 });
 
 const lobbiesMap = new Map();
-const gamesMap = new Map();
+const matchesMap = new Map();
 const SOCKET_CHANNELS = {
   lobby: "lobby",
 };
@@ -82,26 +107,120 @@ getAllUsers().then(result => {
 console.log(await deleteAll(TABLES.LOBBIES));
 
 io.use((socket, next) => {
-  console.log(socket.handshake.auth);
-  const { token, nickname, username, email } = socket.handshake.auth;
+  const { token: storedToken, nickname, username, email } = socket.handshake.auth;
+  console.log("SESSIONTOKEN", socket.handshake.auth);
 
-  socket.user = new User({
-    id: uuidv4(), 
-    username: username, 
-    email: email, 
-    nickname: nickname 
+  if (storedToken) {
+    console.log("SESSIONTOKENS!!!", tokenToSessionDataMap);
+    if (!tokenToSessionDataMap.has(storedToken)) {
+      return next(new Error("Bad token"));
+    }
+
+    try {
+      const sessionData = tokenToSessionDataMap.get(storedToken);
+      const user = sessionData.user;
+
+      socket.data.token = storedToken;
+      socket.data.sessionToken = sessionData.sessionToken;
+      socket.data.user = user;
+
+      console.log("user connected with token");
+      Tests.assertNotNull({
+        message: "User should not be null",
+        value: user,
+      });
+
+      return next();
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  // No token present: create new session
+  const sessionToken = new SessionToken({
+    token: uuidv4(),
   });
-  socket.lobby = null;
-  socket.channels = {};
-  console.log("userdata", socket.user.username);
+  const user = new User({
+    id: uuidv4(),
+    username,
+    email,
+    nickname
+  });
 
-  next();
+  socket.data.user = user;
+  socket.data.token = sessionToken.token;
+  socket.data.sessionToken = sessionToken;
+
+  const sessionData = new SessionData({
+    sessionToken,
+    socketGroup: new SocketGroup([socket]),
+    user,
+    channels: { ...SOCKET_CHANNELS },
+  });
+
+  tokenToSessionDataMap.set(sessionToken.token, sessionData);
+  userIDtoSessionTokenMap.set(user.id, sessionToken);
+
+  Tests.assertNotNull({ value: sessionData, message: "sessionData should not be null" });
+  Tests.assertNotNull({ value: user, message: "user should not be null" });
+  Tests.assertNotNull({ value: socket.handshake.auth, message: "handshake should not be null" });
+
+  return next();
 });
+
 
 // Set up a simple connection event
 io.on("connection", (socket) => {
+  const sessionToken = socket.data.sessionToken;
+  if (sessionToken) {
+    socket.emit(EVENTS.server.action.send_token, sessionToken)
+    const user = socket.data.user;
+    const userID = user.id;
+    const sessionTokenFromMap = userIDtoSessionTokenMap.get(userID);
+    const token = sessionTokenFromMap.token;
+    console.log(token);
+    const sessionData = tokenToSessionDataMap.get(token);
+    const sessionUser = sessionData.user;
+    sessionData.channels = {
+      lobby: null,
+    };
+    Tests.assertEqual({
+      actual: sessionUser,
+      expected: user,
+      message: "Session user should be the same as user from socket"
+    })
+  }
+
   console.log(`A user connected with socket id: ${socket.id}`);
-  socket.player = null;
+
+  setupBaseSocketEvents(socket);
+
+  //sendLobbiesToSocket(socket);  
+});
+
+function addConnectedUser(user) {
+  const userID = user.username;
+  connectedUsersMap.set(userID, user);
+}
+
+function removeConnectedUser(user) {
+  const userID = user.username;
+  connectedUsersMap.delete(userID);
+}
+
+function disconnectSocket(socket) {
+  const userID = socket.data.user.id;
+  const user = connectedUsersMap.get(userID);
+  if (!user) {
+    console.log(`Socket disconnected with socket id: ${socket.id}`);
+    return;
+  }
+  const nickname = user.nickname ?? "unknown";
+  console.log(`User ${nickname} disconnected with socket id: ${socket.id}`);
+  userSocketConnections.removeSocket(userID, socket);
+}
+
+function setupBaseSocketEvents(socket) {
   // Listening for a message from the client
   socket.on(EVENTS.client.action.message, (data) => {
     console.log("Message received:", data);
@@ -111,44 +230,33 @@ io.on("connection", (socket) => {
 
   // Handle disconnect event
   socket.on(EVENTS.client.action.disconnect, () => {
-    console.log(`A user disconnected with socket id: ${socket.id}`);
+    disconnectSocket(socket);
   });
 
   socket.on(EVENTS.client.request.make_lobby, async ({ name }) => {
-    console.log(name);
-    const lobby = createLobby({ 
-        name: name,
-        owner: socket.user, 
-      })
-      console.log(lobby);
+    const getSessionDataResult = getSessionDataBySocket(socket);
+    if (getSessionDataResult.isFailure()) return getSessionDataResult;
+
+    const sessionData = getSessionDataResult.unwrap();
+    const user = sessionData.user;
+    const lobby = createLobby({
+      name: name,
+      owner: user,
+    })
+    console.log(lobby);
     await storeLobby(lobby);
     await sendLobbiesToSocket(socket);
-    console.log(await joinLobbyResponse({socket: socket, newLobbyID: lobby.id}));
+    console.log(await joinLobbyResponse({ socket: socket, newLobbyID: lobby.id }));
   });
 
-
-  socket.on(EVENTS.client.request.start_game, async () => {
-    console.log("starting game");
-    const lobby = socket.lobby;
-    console.log(lobby);
-    if(!lobby){
-      sendToHome(socket);
-      return;
-    }
-    const room = lobby.id;
-    const socketArray = [];
-    const sockets = await io.in(room).fetchSockets();
-    console.log("sockets first", sockets);
-    sockets.forEach(socket => {
-      socketArray.push(socket);
-    });
-    console.log("sockets array", socketArray);
-    makeNewGame({ sockets: socketArray, room: room });
-    io.in(room).emit(EVENTS.server.response.start_game, "starting game");
-  });
+  socket.on(EVENTS.client.request.start_game, () => socketRequestStartGame(socket));
 
   socket.on(EVENTS.client.request.roll, () => {
-    const player = socketPlayerMap.get(socket);
+    const getSessionDataResult = getSessionDataBySocket(socket);
+    if (getSessionDataResult.isFailure()) return getSessionDataResult;
+
+    const sessionData = getSessionDataResult.unwrap();
+    const player = sessionData.gameManager.getPlayer();
     if (!player) {
       sendToHome(socket);
       return;
@@ -159,7 +267,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on(EVENTS.client.request.toggle_hold, (index) => {
-    const player = socketPlayerMap.get(socket);
+    const getSessionDataResult = getSessionDataBySocket(socket);
+    if (getSessionDataResult.isFailure()) return getSessionDataResult;
+
+    const sessionData = getSessionDataResult.unwrap();
+    const player = sessionData.gameManager.getPlayer();
+    console.log("a", sessionData);
     if (!player) {
       sendToHome(socket);
       return;
@@ -171,7 +284,11 @@ io.on("connection", (socket) => {
 
   socket.on(EVENTS.client.request.score, (category) => {
     console.log("score", category);
-    const player = socketPlayerMap.get(socket);
+    const getSessionDataResult = getSessionDataBySocket(socket);
+    if (getSessionDataResult.isFailure()) return getSessionDataResult;
+
+    const sessionData = getSessionDataResult.unwrap();
+    const player = sessionData.gameManager.getPlayer();
     if (!player) {
       sendToHome(socket);
       return;
@@ -182,23 +299,112 @@ io.on("connection", (socket) => {
   });
 
   socket.on(EVENTS.client.request.message_room, ({ message }) => {
-    const room = socket.channels[SOCKET_CHANNELS.lobby];
-    console.log("sending a message to room", room);
-    socket.to(room).emit(EVENTS.client.broadcast.message_room, { sender: socket.user.nickname, message: message });
+    tryCatchAsync(async () =>{  
+      const sessionData = getSessionDataBySocket(socket).unwrap();
+      const room = sessionData.channels[SOCKET_CHANNELS.lobby];
+      console.log("sending a message to room", room);
+      socket.to(room).emit(EVENTS.client.broadcast.message_room, { sender: socket.user.nickname, message: message });
+    })
   });
+
+  socket.on(EVENTS.client.request.leave_lobby, async () => {
+    tryCatchAsync(async () => {
+      const sessionData = getSessionDataBySocket(socket).unwrap();
+      const user = sessionData.user;
+      await leaveLobbyResponse(user);
+    })
+  })
+
 
   socket.on(EVENTS.client.request.get_lobbies, () => {
     sendLobbiesToSocket(socket);
   });
 
   socket.on(EVENTS.client.request.join_lobby, async ({ newLobbyID }) => {
-    await joinLobbyResponse({socket: socket, newLobbyID: newLobbyID});
+    console.log("trying to join lobby", newLobbyID);
+    await joinLobbyResponse({ socket: socket, newLobbyID: newLobbyID });
   })
+}
 
-  sendLobbiesToSocket(socket);
-});
+async function socketRequestStartGame(socket) {
+  const result = await tryCatchAsync(async () => {
+    const sessionData = getSessionDataBySocket(socket).unwrap();
 
-async function sendLobbiesToSocket(socket) {  
+    const lobbyID = sessionData.lobby.id;
+    const lobby = lobbiesMap.get(lobbyID);
+    if (!lobby) throw new Error("Lobby not found");
+
+    const room = lobby.id;
+    const user = sessionData.user;
+
+    const matchManager = makeNewGame({ room, owner: user }).unwrap();
+
+    const gameManager = matchManager
+      .getPlayerOfUser(user)
+      .bind(player => matchManager.getGameManagerOfPlayer(player))
+      .unwrap();
+
+    updateUserSessionData(user.id, {gameManager})
+
+    io.in(room).emit(EVENTS.server.response.start_game, "starting game");
+
+    return true;
+  });
+
+  if (result.isFailure()) {
+    console.error(result.getError());
+    sendToHome(socket);
+    // Optionally emit failure event here, if you want
+    // io.in(room).emit(EVENTS.server.response.start_game, "couldnt start game");
+  }
+}
+
+function getSessionDataByUserID(userID) {
+  return ensureResult(SessionData, Error, () => {
+    try {
+      const sessionToken = userIDtoSessionTokenMap.get(userID);
+      const token = sessionToken.token;
+      const sessionData = tokenToSessionDataMap.get(token);
+      return sessionData;
+    } catch (error) {
+      return error;
+    }
+  })
+}
+
+function getUserIdFromSocket(socket) {
+  return ensureResult(String, Error, () => {
+    try {
+      const user = socket.data.user;
+      const userID = user.id;
+      return userID;
+    } catch (error) {
+      return error;
+    }
+  })
+}
+
+function getSessionDataBySocket(socket) {
+  return ensureResult(SessionData, Error, () => {
+    try {
+      const getUserIdResult = getUserIdFromSocket(socket);
+      if (getUserIdResult.isFailure()) {
+        return new Error("couldn't get user id from socket");
+      }
+
+      const userID = getUserIdResult.unwrap();
+      const getSessionDataResult = getSessionDataByUserID(userID);
+      if (getSessionDataResult.isFailure()) {
+        return new Error("couldn't get session data from socket");
+      }
+      const sessionData = getSessionDataResult.unwrap();
+      return sessionData;
+    } catch (error) {
+      return error;
+    }
+  })
+}
+async function sendLobbiesToSocket(socket) {
   console.log(`sending lobbies to ${socket.id}`);
   console.log(lobbiesMap.size);
   const lobbyKeys = Array.from(lobbiesMap.keys());
@@ -206,7 +412,7 @@ async function sendLobbiesToSocket(socket) {
   socket.emit(EVENTS.server.response.get_lobbies, { lobbyKeys: lobbyKeys, lobbyValues: lobbyValues });
 }
 async function joinRoom(socket, room) {
-  socket.join(room);                 
+  socket.join(room);
   return Result.success(`Joined room: ${room}`);
 }
 
@@ -216,21 +422,35 @@ async function leaveRoom(socket, room) {
 }
 
 async function joinLobby({ socket, lobby }) {
-  const user = socket.user;
-  socket.lobby = lobby;
-  lobby.addPlayer({user: user});
+  const getSessionDataResult = getSessionDataBySocket(socket);
+  if (getSessionDataResult.isFailure()) return getSessionDataResult;
+
+  const sessionData = getSessionDataResult.unwrap();
+  const user = sessionData.user;
+  const userID = user.id;
+  lobby.addPlayer({ user: user });
+  updateUserSessionData(userID, {
+    lobby: lobby,
+  })
   return Result.success(lobby);
 }
 
 async function leaveLobby({ socket, lobby }) {
-  const user = socket.user;
+  const getSessionDataResult = getSessionDataBySocket(socket);
+  if (getSessionDataResult.isFailure()) return getSessionDataResult;
+
+  const sessionData = getSessionDataResult.unwrap();
+  const user = sessionData.user;
+  const userID = user.id;
   console.log(user);
-  socket.lobby = null;
-  lobby.removePlayer({user: user});
+  lobby.removePlayer({ user: user });
+  updateUserSessionData(userID, {
+    lobby: null,
+  })
   return Result.success("Left lobby");
 }
 
-async function switchLobbies({ socket, lobby }){
+async function switchLobbies({ socket, lobby }) {
   const leaveLobbyResult = await leaveLobby({
     socket: socket,
     lobby: lobby,
@@ -251,64 +471,129 @@ async function getLobby(lobbyID) {
   return lobbyResult;
 }
 
-async function joinChannel({socket, channelID, channelName}){
-  const channels = socket.channels;
-  if(channels[channelID]) return Result.failure("Already in channel with same name");
+async function joinChannel({ socket, channelID, channelName }) {
+  const getSessionDataResult = getSessionDataBySocket(socket);
+  if (getSessionDataResult.isFailure()) return getSessionDataResult;
+
+  const sessionData = getSessionDataResult.unwrap();
+  const channels = sessionData.channels;
+  if (channels[channelID]) return Result.failure("Already in channel with same name");
 
   await joinRoom(socket, channelID);
   channels[channelName] = channelID;
   return Result.success("Joined channel");
 }
 
-async function leaveChannel({socket, channelName, channelID}){
-  const channels = socket.channels;
-  if(!channels[channelID]) return Result.failure("Already not in that channel");
+async function leaveChannel({ socket, channelName, channelID }) {
+  const getSessionDataResult = getSessionDataBySocket(socket);
+  if (getSessionDataResult.isFailure()) return getSessionDataResult;
+
+  const sessionData = getSessionDataResult.unwrap();
+  const channels = sessionData.channels;
+  if (!channels[channelID]) return Result.failure("Already not in that channel");
 
   await leaveRoom(socket, channelID);
   delete channels[channelName];
   return Result.success("Left channel");
 }
 
-async function replaceChannel({socket, channelName, channelID}){
-  const channels = socket.channels;
-  const previous = channels[channelName];
+async function replaceChannel({ socket, channelName, channelID }) {
+  return tryCatchAsync(() =>
+    getSessionDataBySocket(socket)
+      .bindSync(async sessionData => {
+        const { socketGroup, channels } = sessionData;
 
-  await leaveRoom(socket, previous);
-  await joinRoom(socket, channelID);
-  channels[channelName] = channelID;
-  return Result.success("Replaced channel");
+        await socketGroup.forEachAsync(async socket => {
+          await leaveRoom(socket, channels);
+          await joinRoom(socket, channelID);
+        });
+
+        channels[channelName] = channelID;
+        return Result.success("Replaced channel");
+      })
+  );
 }
 
-async function joinLobbyResponse({socket, newLobbyID}){
-   if (socket.lobby !== null && socket.lobby.id === newLobbyID) {
-      socket.emit(EVENTS.server.response.join_lobby, Result.failure("Client is already in this lobby"));
-      return;
-    }
+async function joinLobbyResponse({ socket, newLobbyID }) {
+  const getSessionDataResult = getSessionDataBySocket(socket);
+  if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
-    const lobbyResult = await getLobby(newLobbyID);
-    if (lobbyResult.isFailure()) {
-      socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
-      return;
-    }
+  const sessionData = getSessionDataResult.unwrap();
+  const currentLobby = sessionData.lobby;
+  if (currentLobby !== null && currentLobby.id === newLobbyID) {
+    socket.emit(EVENTS.server.response.join_lobby, Result.failure("Client is already in this lobby"));
+    return;
+  }
 
-    const lobby = lobbyResult.unwrap();
-    console.log("lobby", lobby);
+  const lobbyResult = await getLobby(newLobbyID);
+  if (lobbyResult.isFailure()) {
+    socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
+    return;
+  }
+
+  const lobby = lobbyResult.unwrap();
+  const user = sessionData.user;
+  const userID = user.id;
+  lobby.addPlayer(userID);
+
+  const replaceChannelResult = await replaceChannel({
+    socket: socket,
+    channelName: SOCKET_CHANNELS.lobby,
+    channelID: newLobbyID,
+  });
+  const switchLobbiesResult = await switchLobbies({
+    socket: socket,
+    lobby: lobby,
+  });
+  socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
+
+  console.log("JOINED", newLobbyID);
+  Tests.assertTrue({
+    value: switchLobbiesResult.isSuccess(),
+    message: "switchLobbiesResult should always pass"
+  });
+  Tests.assertTrue({
+    value: replaceChannelResult.isSuccess(),
+    message: "replaceChannelResult should always pass"
+  });
+  Tests.assertNotNull({
+    value: lobby,
+    message: "lobby should not be null",
+  });
+
+
+}
+
+async function leaveLobbyResponse(user) {
+  const result = await tryCatchAsync(async () =>{
+    const sessionData = getSessionDataByUserID(user.id).unwrap();
+    const user = sessionData.user;
+    const socketGroup = sessionData.socketGroup;
+    const currentLobby = sessionData.lobby;
+    const currentLobbyID = currentLobby.id;
+
+    const lobby = await getLobby(currentLobbyID).unwrap();
+    const userID = user.id;
+    lobby.addPlayer(userID);
+  
     const replaceChannelResult = await replaceChannel({
-      socket: socket, 
-      channelName: "lobby",
+      socket: socket,
+      channelName: SOCKET_CHANNELS.lobby,
       channelID: newLobbyID,
     });
     const switchLobbiesResult = await switchLobbies({
       socket: socket,
       lobby: lobby,
     });
-
-    console.log(switchLobbiesResult.unwrapOr());
-    console.log("JOINED", newLobbyID);
-    console.log(replaceChannelResult.unwrapOr());
-    console.log(socket.channels);
-    console.log(socket.lobby);
+  
     socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
+  
+    console.log("JOINED", newLobbyID);
+  })
+    if (result.isFailure()) {
+      socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
+      return;
+    }
 }
 
 
@@ -331,9 +616,14 @@ function createLobby({
     maxPlayers: maxPlayers,
   });
 
-  lobby.players.push(owner);
-
   return lobby;
+}
+
+function updateUserSessionData(userID, { lobby, gameManager, socketGroup, channels }) {
+  if (!userID) return Result.failure("No user ID");
+
+  return getSessionDataByUserID(userID)
+    .mapSync(sessionData => SessionData.update(sessionData, { lobby, gameManager, socketGroup, channels }));
 }
 
 async function storeLobby(lobby) {
@@ -383,43 +673,23 @@ server.listen(PORT, () => {
 
 });
 
-const players = new Set();
-for (let i = 0; i < 4; i++) {
-  players.add(new Player);
-}
 
-
-const gameManager = new GameManager();
-gameManager.init(players)
-
-for (let i = 0; i < 4; i++) {
-  gameManager.turnManager.next();
-}
-
-console.log(gameManager.turnManager);
-
-function makeNewGame({ sockets, room }) {
-  const gameManager = new GameManager();
-  gameManager.init();
-  console.log("sockets", sockets);
-  sockets.forEach(socket => {
-    const player = new Player();
-    player.room = room;
-    gameManager.addPlayer(player);
-    socketPlayerMap.set(socket, player);
-  });
-  console.log(socketPlayerMap);
-  gamesMap.set(room, gameManager);
-  gameManager.start();
+function makeNewGame({ room, owner }) {
+  const matchManager = new MatchManager();
+  matchManager.init(room);
+  matchManager.addUserAsPlayer(owner)
+  return Result.success(matchManager);
 }
 
 function getGameData({ socket }) {
-  const player = socketPlayerMap.get(socket);
+  const userID = userSocketConnections.getUserIDBySocket(socket);
+  const player = userPlayersMap.get(userID);
   const room = player.room;
-  const gameManager = gamesMap.get(room);
+  const gameManager = matchesMap.get(room);
   const gameDataResult = gameManager.getGameDataOfPlayer(player);
   return gameDataResult;
 }
+
 /*
 const game = new Game();
 console.log(game.useRuleset(Game.defaultRuleset));

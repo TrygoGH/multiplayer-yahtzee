@@ -28,18 +28,30 @@ import Lobby from '@/models/Lobby';
 import { useRouter } from 'vue-router';  // Import useRouter to use routing
 
 // Reactive data
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { getSocket } from '../services/socketService';
 
 const messageList = ref([]);
 const responseMessage = ref('');
 const messageInput = ref('');
 const lobbies = ref([]);
-const socket = getSocketSafe();
-setupSocketEvents();
 
 // Initialize Vue Router
 const router = useRouter();
+
+const socket = (() => {
+  try {
+    return getSocketSafe().unwrapOrThrow(); 
+  } catch (error) {
+    console.error("Failed to get socket:", error);
+    router.push({
+      name: "Login"
+    })
+    return;
+  }
+})();
+setupSocketEvents();
+
 
 // Methods
 const sendMessage = () => {
@@ -55,11 +67,12 @@ const sendText = () => {
 };
 
 const tryJoinLobby = (lobby) => {
-  console.log("joining");
+  console.log("joining", lobby);
   joinLobby(lobby);
 };
 
 function setupSocketEvents(){
+  console.log(socket);
   // Listen for socket events
 socket.on(EVENTS.server.action.message, (data) => {
   responseMessage.value = data;
@@ -94,6 +107,10 @@ socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {
 
 // Call getLobbies to populate the list on load
 getLobbies();
+
+onMounted(() =>{
+      console.log(localStorage);
+})
 </script>
 
 <style scoped>

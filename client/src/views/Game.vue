@@ -67,7 +67,7 @@ import { PlayerGameData } from '@/models/playerGameData';
 import Player from '../models/Player';
 
 const router = useRouter()
-const socket = getSocketSafe()
+const socket = getSocketSafe().unwrapOrThrow();
 
 const lobbyName = ref(lobbyTracker.current?.name || 'Game Room')
 const chatMessages = ref([])

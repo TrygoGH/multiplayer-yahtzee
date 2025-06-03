@@ -1,8 +1,7 @@
 export class Player {
-    constructor({id, name, room, onRoll, onToggleHoldDie, onScore} = {}) {
+    constructor({id, name, onRoll, onToggleHoldDie, onScore} = {}) {
         this.id = id;
         this.name = name;
-        this.room = room;
         this.onRoll = onRoll;
         this.onToggleHoldDie = onToggleHoldDie;
         this.onScore = onScore;

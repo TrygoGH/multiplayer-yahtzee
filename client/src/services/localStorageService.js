@@ -8,7 +8,7 @@ export function getItemUnsafe(key){
     const isValidKeyResult = isValidKey(key);
     if(isValidKeyResult.isFailure()) return isValidKeyResult;
 
-    const item = sessionStorage.getItem(key);
+    const item = localStorage.getItem(key);
     return Result.success(item);
 }
 
@@ -16,7 +16,7 @@ export function getItem(key){
     const isValidKeyResult = isValidKey(key);
     if(isValidKeyResult.isFailure()) return isValidKeyResult;
 
-    const item = sessionStorage.getItem(key);
+    const item = localStorage.getItem(key);
     if(!item) return Result.failure(`Item from key ${key} is not a valid object.`);
 
     return Result.success(item);
@@ -26,8 +26,8 @@ export function removeItem(key){
     const isValidKeyResult = isValidKey(key);
     if(isValidKeyResult.isFailure()) return isValidKeyResult;
 
-    sessionStorage.removeItem(key);
-    const item = sessionStorage.getItem(key);
+    localStorage.removeItem(key);
+    const item = localStorage.getItem(key);
     if(item) return Result.failure(`Item from key ${key} has not been removed successfully.`);
 
     return Result.success(`Item from key ${key} has been removed successfully.`);
@@ -52,7 +52,7 @@ export function setItem(key, value){
     if(isValidKeyResult.isFailure()) return isValidKeyResult;
 
     const setItemResult = tryCatch(() => {
-        sessionStorage.setItem(key, value)
+        localStorage.setItem(key, value)
     });
     if(setItemResult.isFailure()) return Result.failure(`Error: ${setItemResult.error}`);
 
