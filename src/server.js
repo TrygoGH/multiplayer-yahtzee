@@ -6,7 +6,7 @@ import { Server as SocketServer, Socket } from "socket.io";
 import Lobby from './models/Lobby.js';  // Ensure this path is correct for your project structure
 import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
-import { Result, ensureResult, tryCatch, tryCatchAsync } from "./utils/Result.js";
+import { Result, ensureResult, tryCatch, tryCatchAsync, tryCatchAsyncFlex, tryCatchFlex} from "./utils/Result.js";
 import { getConnection, testConnection } from "./database/database.js";
 import { deleteOldLobbies, deleteAll, getAllUsers, getMySQLDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
 import User from "./domain/user/User.js";
@@ -485,22 +485,23 @@ async function joinChannel({ socket, channelID, channelName }) {
 }
 
 async function leaveChannel({ socket, channelName, channelID }) {
-  const getSessionDataResult = getSessionDataBySocket(socket);
-  if (getSessionDataResult.isFailure()) return getSessionDataResult;
-
-  const sessionData = getSessionDataResult.unwrap();
-  const channels = sessionData.channels;
-  if (!channels[channelID]) return Result.failure("Already not in that channel");
-
-  await leaveRoom(socket, channelID);
-  delete channels[channelName];
-  return Result.success("Left channel");
+  return tryCatchAsync(async () => {
+    getSessionDataBySocket(socket);
+    if (getSessionDataResult.isFailure()) return getSessionDataResult;
+  
+    const sessionData = getSessionDataResult.unwrap();
+    const channels = sessionData.channels;
+    if (!channels[channelID]) return Result.failure("Already not in that channel");
+  
+    await leaveRoom(socket, channelID);
+    delete channels[channelName];
+    return Result.success("Left channel");
+  })
 }
 
 async function replaceChannel({ socket, channelName, channelID }) {
-  return tryCatchAsync(() =>
-    getSessionDataBySocket(socket)
-      .bindSync(async sessionData => {
+  const test = await getSessionDataBySocket(socket)
+      .bindAsync(async sessionData => {
         const { socketGroup, channels } = sessionData;
 
         await socketGroup.forEachAsync(async socket => {
@@ -511,7 +512,24 @@ async function replaceChannel({ socket, channelName, channelID }) {
         channels[channelName] = channelID;
         return Result.success("Replaced channel");
       })
+
+  const result = await tryCatchAsyncFlex(async () =>
+    await getSessionDataBySocket(socket)
+      .bindAsync(async sessionData => {
+        const { socketGroup, channels } = sessionData;
+
+        await socketGroup.forEachAsync(async socket => {
+          await leaveRoom(socket, channels);
+          await joinRoom(socket, channelID);
+        });
+
+        channels[channelName] = channelID;
+        console.log("im being run!!!!");
+        return Result.success("Replaced channel");
+      })
   );
+  console.log("result of replace", await result.unwrap()())
+  return result;
 }
 
 async function joinLobbyResponse({ socket, newLobbyID }) {

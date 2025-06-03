@@ -1,4 +1,4 @@
-import Result from "../../../utils/Result.js";
+import { Result } from "../../../utils/Result.js";
 
 export class TurnHandler {
     constructor() {

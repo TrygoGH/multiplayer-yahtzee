@@ -1,5 +1,5 @@
 import { Console } from "console";
-import Result from "../../../utils/Result.js";
+import { Result } from "../../../utils/Result.js";
 import { Game } from "../models/Game.js";
 import { Player } from "../models/Player.js";
 import { TurnManager } from "./TurnManager.js";

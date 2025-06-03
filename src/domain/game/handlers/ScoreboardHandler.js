@@ -1,6 +1,6 @@
 import { Scoreboard } from "../models/Scoreboard.js";
 import {CATEGORIES} from "../constants/Catagories.js";
-import Result from "../../../utils/Result.js";
+import { Result } from "../../../utils/Result.js";
 
 export class ScoreboardHandler {
   constructor() {
