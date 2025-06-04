@@ -34,7 +34,7 @@ export class GameManager {
     }
 
     initGame() {
-        this.game.useRuleset(Game.defaultRuleset);
+        this.game.useRuleset(GameManager.defaultRuleset);
         this.game.init();
     }
 
@@ -50,16 +50,20 @@ export class GameManager {
 
     score(category) {
         const result = this.game.score(category);
-        if (scoreResult.isFailure()) return result;
-
-        game.nextTurn();
+        
+        if (result.isFailure()) return result;
+        this.game.nextTurn();
     }
 
     getGame() {
         const hasGame = (!this.game);
-        if (!hasGame) return Result.failure(`Player ${this.player} does not have a game`);
+        if (!this.game) return Result.failure(`Player ${this.player} does not have a game`);
 
         return Result.success(this.game);
+    }
+
+    nextTurn(){
+        this.game.nextTurn();
     }
 
     hasGameEnded() {
@@ -72,7 +76,6 @@ export class GameManager {
 
     getGameData() {
         const gameData = this.game.getGameData();
-
         return Result.success(gameData);
     }
 }

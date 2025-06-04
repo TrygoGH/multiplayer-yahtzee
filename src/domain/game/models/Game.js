@@ -34,7 +34,6 @@ export class Game {
     useRuleset(ruleset) {
         if (!ruleset instanceof GameRules) return Result.failure("Invalid gamerules");  
 
-        console.log(ruleset);
         this.gameRules = ruleset;
         this.diceHandler.useRuleset(ruleset);
         this.turnHandler.useRuleset(ruleset);
@@ -64,7 +63,6 @@ export class Game {
 
     score(category) {
         if (!this.turnHandler.hasRolled()) return Result.failure("Hasn't rolled");
-
         const diceValues = this.diceHandler.getDiceValues();
         const scores = this.scoreHandler.calculateAllScores(diceValues);
         const score = scores[category];
@@ -72,14 +70,13 @@ export class Game {
             category: category,
             value: score,
         })
-
+                console.log(scoreResult);
         return scoreResult;
     }
 
     nextTurn(){
         this.turnHandler.nextTurn();
         this.diceHandler.resetHeld();
-        console.log("NEXT TURN", this.turnHandler);
     }
 
     hasGameEnded(){

@@ -6,7 +6,7 @@ import { Server as SocketServer, Socket } from "socket.io";
 import Lobby from './models/Lobby.js';  // Ensure this path is correct for your project structure
 import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
-import { Result, ensureResult, tryCatch, tryCatchAsync, tryCatchAsyncFlex, tryCatchFlex} from "./utils/Result.js";
+import { Result, ensureResult, tryCatch, tryCatchAsync, tryCatchAsyncFlex, tryCatchFlex } from "./utils/Result.js";
 import { getConnection, testConnection } from "./database/database.js";
 import { deleteOldLobbies, deleteAll, getAllUsers, getMySQLDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
 import User from "./domain/user/User.js";
@@ -199,17 +199,17 @@ io.on("connection", (socket) => {
 });
 
 function addConnectedUser(user) {
-  const userID = user.username;
+  const userID = user?.username;
   connectedUsersMap.set(userID, user);
 }
 
 function removeConnectedUser(user) {
-  const userID = user.username;
+  const userID = user?.username;
   connectedUsersMap.delete(userID);
 }
 
 function disconnectSocket(socket) {
-  const userID = socket.data.user.id;
+  const userID = socket?.data?.user?.id;
   const user = connectedUsersMap.get(userID);
   if (!user) {
     console.log(`Socket disconnected with socket id: ${socket.id}`);
@@ -219,24 +219,6 @@ function disconnectSocket(socket) {
   console.log(`User ${nickname} disconnected with socket id: ${socket.id}`);
   userSocketConnections.removeSocket(userID, socket);
 }
-
-class Animal{
-    constructor(name, type, age, size) {
-    this.name = name;
-    this.type = type;
-    this.age = age;
-    this.size = size;
-  }
-}
-class Cat extends Animal {
-  constructor(name, type, age, size, meow){
-    super(name, type, age, size);
-    this.meow = meow;
-  }
-}
-
-const cat = new Cat("Yomna", "Cutie", "23", "Funny size", "Nya!");
-console.log(cat); // 
 
 function setupBaseSocketEvents(socket) {
   // Listening for a message from the client
@@ -269,7 +251,7 @@ function setupBaseSocketEvents(socket) {
 
   socket.on(EVENTS.client.request.start_game, () => socketRequestStartGame(socket));
 
-  socket.on(EVENTS.client.request.roll, () => {
+  socket.on(EVENTS.client.request.roll, async () => {
     const getSessionDataResult = getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
@@ -280,31 +262,31 @@ function setupBaseSocketEvents(socket) {
       return;
     }
     player.roll();
+
     socket.emit(EVENTS.server.response.roll, "rolling");
-    socket.emit(EVENTS.server.action.send_game_data, getGameData({ socket: socket }).unwrapOr());
+    socket.emit(EVENTS.server.action.send_game_data, (await getGameData({ socket: socket })).unwrap());
   });
 
-  socket.on(EVENTS.client.request.toggle_hold, (index) => {
+  socket.on(EVENTS.client.request.toggle_hold, async (index) => {
     const getSessionDataResult = getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
     const sessionData = getSessionDataResult.unwrap();
     const player = sessionData.gameManager.getPlayer();
-    console.log("a", sessionData);
     if (!player) {
       sendToHome(socket);
       return;
     }
     player.toggleHoldDie(index);
     //socket.emit(EVENTS.server.response.roll, "rolling");
-    socket.emit(EVENTS.server.action.send_game_data, getGameData({ socket: socket }).unwrapOr());
+    socket.emit(EVENTS.server.action.send_game_data, (await getGameData({ socket: socket })).unwrap());
   });
 
-  socket.on(EVENTS.client.request.score, (category) => {
+  socket.on(EVENTS.client.request.score, async (category) => {
     console.log("score", category);
     const getSessionDataResult = getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
-
+    
     const sessionData = getSessionDataResult.unwrap();
     const player = sessionData.gameManager.getPlayer();
     if (!player) {
@@ -313,11 +295,11 @@ function setupBaseSocketEvents(socket) {
     }
     player.score(category);
     socket.emit(EVENTS.server.response.score, "rolling");
-    socket.emit(EVENTS.server.action.send_game_data, getGameData({ socket: socket }).unwrapOr());
+    socket.emit(EVENTS.server.action.send_game_data, (await getGameData({ socket: socket })).unwrap());
   });
 
   socket.on(EVENTS.client.request.message_room, ({ message }) => {
-    tryCatchAsync(async () =>{  
+    tryCatchAsync(async () => {
       const sessionData = getSessionDataBySocket(socket).unwrap();
       const room = sessionData.channels[SOCKET_CHANNELS.lobby];
       console.log("sending a message to room", room);
@@ -364,12 +346,11 @@ async function socketRequestStartGame(socket) {
       .bindSync(player => matchManager.getGameManagerOfPlayer(player))
       .unwrap();
 
-    updateUserSessionData(user.id, {gameManager})
+    updateUserSessionData(user.id, { gameManager })
     io.in(room).emit(EVENTS.server.response.start_game, "starting game");
 
     return true;
   });
-  console.log(result);
   if (result.isFailure()) {
     console.error(result.getError());
     sendToHome(socket);
@@ -379,50 +360,29 @@ async function socketRequestStartGame(socket) {
 }
 
 function getSessionDataByUserID(userID) {
-  return ensureResult(SessionData, Error, () => {
-    try {
-      const sessionToken = userIDtoSessionTokenMap.get(userID);
-      const token = sessionToken.token;
-      const sessionData = tokenToSessionDataMap.get(token);
-      return sessionData;
-    } catch (error) {
-      return error;
-    }
+  return tryCatch(() => {
+    const sessionToken = userIDtoSessionTokenMap.get(userID);
+    const token = sessionToken.token;
+    const sessionData = tokenToSessionDataMap.get(token);
+    return sessionData;
   })
 }
 
 function getUserIdFromSocket(socket) {
-  return ensureResult(String, Error, () => {
-    try {
-      const user = socket.data.user;
-      const userID = user.id;
-      return userID;
-    } catch (error) {
-      return error;
-    }
+  return tryCatch(() => {
+    const userID = socket.data.user.id;
+    return userID;
   })
 }
 
 function getSessionDataBySocket(socket) {
-  return ensureResult(SessionData, Error, () => {
-    try {
-      const getUserIdResult = getUserIdFromSocket(socket);
-      if (getUserIdResult.isFailure()) {
-        return new Error("couldn't get user id from socket");
-      }
-
-      const userID = getUserIdResult.unwrap();
-      const getSessionDataResult = getSessionDataByUserID(userID);
-      if (getSessionDataResult.isFailure()) {
-        return new Error("couldn't get session data from socket");
-      }
-      const sessionData = getSessionDataResult.unwrap();
-      return sessionData;
-    } catch (error) {
-      return error;
-    }
+  return tryCatchFlex(() => {
+    const result = getUserIdFromSocket(socket)
+      .bindSync(userID => getSessionDataByUserID(userID));
+    return result;
   })
 }
+
 async function sendLobbiesToSocket(socket) {
   console.log(`sending lobbies to ${socket.id}`);
   console.log(lobbiesMap.size);
@@ -506,11 +466,11 @@ async function leaveChannel({ socket, channelName, channelID }) {
   return tryCatchAsync(async () => {
     getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
-  
+
     const sessionData = getSessionDataResult.unwrap();
     const channels = sessionData.channels;
     if (!channels[channelID]) return Result.failure("Already not in that channel");
-  
+
     await leaveRoom(socket, channelID);
     delete channels[channelName];
     return Result.success("Left channel");
@@ -587,7 +547,7 @@ async function joinLobbyResponse({ socket, newLobbyID }) {
 }
 
 async function leaveLobbyResponse(user) {
-  const result = await tryCatchAsync(async () =>{
+  const result = await tryCatchAsync(async () => {
     const sessionData = getSessionDataByUserID(user.id).unwrap();
     const user = sessionData.user;
     const socketGroup = sessionData.socketGroup;
@@ -597,7 +557,7 @@ async function leaveLobbyResponse(user) {
     const lobby = await getLobby(currentLobbyID).unwrap();
     const userID = user.id;
     lobby.addPlayer(userID);
-  
+
     const replaceChannelResult = await replaceChannel({
       socket: socket,
       channelName: SOCKET_CHANNELS.lobby,
@@ -607,15 +567,15 @@ async function leaveLobbyResponse(user) {
       socket: socket,
       lobby: lobby,
     });
-  
+
     socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
-  
+
     console.log("JOINED", newLobbyID);
   })
-    if (result.isFailure()) {
-      socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
-      return;
-    }
+  if (result.isFailure()) {
+    socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
+    return;
+  }
 }
 
 
@@ -703,13 +663,11 @@ function makeNewGame({ room, owner }) {
   return Result.success(matchManager);
 }
 
-function getGameData({ socket }) {
-  const userID = userSocketConnections.getUserIDBySocket(socket);
-  const player = userPlayersMap.get(userID);
-  const room = player.room;
-  const gameManager = matchesMap.get(room);
-  const gameDataResult = gameManager.getGameDataOfPlayer(player);
-  return gameDataResult;
+async function getGameData({ socket }) {
+  const result = await getSessionDataBySocket(socket)
+  .bind(sessionData => sessionData.gameManager.getGameData());
+
+  return result;
 }
 
 /*

@@ -4,7 +4,7 @@ import { MatchData } from "../models/MatchData.js";
 import { User } from "../../user/User.js";
 import { LinkMap } from "../../../utils/Maps.js";
 import { TurnManager } from "./TurnManager.js";
-import { Result, tryCatch } from "../../../utils/Result.js";
+import { Result, tryCatch, tryCatchFlex } from "../../../utils/Result.js";
 
 export class MatchManager {
     constructor() {
@@ -28,6 +28,7 @@ export class MatchManager {
     addUserAsPlayer(user) {
         const gameManager = new GameManager();
         gameManager.setPlayerData({nickname: user.username});
+        gameManager.initGame();
         const player = gameManager.getPlayer();
         this.setPlayerControls(player);
         this.playerIdsGamesLinkMap.set(player.id, gameManager);
@@ -87,27 +88,28 @@ export class MatchManager {
     }
 
     score(player, category) {
-        const isPlayerTurnResult = this.isPlayerTurn(player);
-        if (isPlayerTurnResult.isFailure()) return isPlayerTurnResult;
+        return tryCatchFlex(() => {
+            const isPlayerTurnResult = this.isPlayerTurn(player);
+            if (isPlayerTurnResult.isFailure()) return isPlayerTurnResult;
+            
+            const result = this.getGameManagerOfPlayer(player)
+            .bind(gameManager => gameManager.score(category))
+            
+            console.log(result);
+            if (result.isFailure()) return result;
+            
+            const { gameManager } = result;
+            gameManager.nextTurn();
+            this.turnManager.next();
 
-        const gameResult = this.getGameManagerOfPlayer(player);
-        if (gameResult.isFailure()) return gameResult;
-
-        const game = gameResult.unwrap();
-        const scoreResult = game.score(category);
-
-        if (scoreResult.isFailure()) return scoreResult;
-
-        game.nextTurn();
-        this.turnManager.next();
-        return Result.success(`successfully scored in category ${category}`);
+            return Result.success(`successfully scored in category ${category}`);
+        })
     }
 
     getGameManagerOfPlayer(player) {
         return tryCatch(() => {
             const playerID = player.id;
             const hasGameManager = this.playerIdsGamesLinkMap.hasA(playerID);
-            console.log(player, this.playerIdsGamesLinkMap.forwardMap);
             if (!hasGameManager) throw new Error(`Player ${player} does not have a GameManager`);
     
             const gameManager = this.playerIdsGamesLinkMap.getForward(playerID);
@@ -163,6 +165,13 @@ export class MatchManager {
         }
 
         return Result.success(true);
+    }
+
+    getGameDataOfPlayer(player){
+        const result = this.getGameManagerOfPlayer(player)
+            .bindSync(gameManager => gameManager.getGameData());
+
+        return result;
     }
     
 }

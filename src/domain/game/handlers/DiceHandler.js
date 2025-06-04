@@ -3,7 +3,7 @@ import { Result } from "../../../utils/Result.js";
 
 export class DiceHandler {
   constructor() {
-    this.dice = null;
+    this.dice = [];
   }
 
   init() {
