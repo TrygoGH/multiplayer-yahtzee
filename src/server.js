@@ -220,6 +220,24 @@ function disconnectSocket(socket) {
   userSocketConnections.removeSocket(userID, socket);
 }
 
+class Animal{
+    constructor(name, type, age, size) {
+    this.name = name;
+    this.type = type;
+    this.age = age;
+    this.size = size;
+  }
+}
+class Cat extends Animal {
+  constructor(name, type, age, size, meow){
+    super(name, type, age, size);
+    this.meow = meow;
+  }
+}
+
+const cat = new Cat("Yomna", "Cutie", "23", "Funny size", "Nya!");
+console.log(cat); // 
+
 function setupBaseSocketEvents(socket) {
   // Listening for a message from the client
   socket.on(EVENTS.client.action.message, (data) => {
@@ -327,7 +345,9 @@ function setupBaseSocketEvents(socket) {
 }
 
 async function socketRequestStartGame(socket) {
-  const result = await tryCatchAsync(async () => {
+  console.log("trying to start game");
+  const result = await tryCatchAsyncFlex(async () => {
+    console.log("does go wrong here?");
     const sessionData = getSessionDataBySocket(socket).unwrap();
 
     const lobbyID = sessionData.lobby.id;
@@ -341,16 +361,15 @@ async function socketRequestStartGame(socket) {
 
     const gameManager = matchManager
       .getPlayerOfUser(user)
-      .bind(player => matchManager.getGameManagerOfPlayer(player))
+      .bindSync(player => matchManager.getGameManagerOfPlayer(player))
       .unwrap();
 
     updateUserSessionData(user.id, {gameManager})
-
     io.in(room).emit(EVENTS.server.response.start_game, "starting game");
 
     return true;
   });
-
+  console.log(result);
   if (result.isFailure()) {
     console.error(result.getError());
     sendToHome(socket);
@@ -442,7 +461,6 @@ async function leaveLobby({ socket, lobby }) {
   const sessionData = getSessionDataResult.unwrap();
   const user = sessionData.user;
   const userID = user.id;
-  console.log(user);
   lobby.removePlayer({ user: user });
   updateUserSessionData(userID, {
     lobby: null,
