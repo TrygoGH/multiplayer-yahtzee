@@ -98,7 +98,7 @@ function sendMessage() {
     room: lobbyTracker.current.id,
     message: text
   })
-  console.log(socket);
+  console.log("sending message");
   appendMessage('You', text)
   chatMessage.value = ''
 }

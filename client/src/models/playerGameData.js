@@ -2,11 +2,12 @@ export class PlayerGameData {
     /**
      * @param {Object} opts
      * @param {Object[]} opts.dice       – Current dice values array  
-     * @param {boolean[]} opts.held      – Array of held flags (same length as dice)  
      * @param {number} opts.rollsLeft    – Rolls remaining this turn  
      * @param {number} opts.turnsLeft    – Turns remaining in game  
      * @param {Object} opts.scores       – Score object per category  
      * @param {number} opts.totalScore   – Sum of all scored categories  
+     * @param {boolean} opts.gamestate   – State of the game
+     * @param {boolean} opts.isTurn      – If it's the player's turn
      */
     constructor({
       dice,
@@ -14,14 +15,18 @@ export class PlayerGameData {
       turnsLeft,
       scores,
       scoredScores,
-      combinedScores
+      combinedScores,
+      gamestate,
+      isTurn,
     } = {}) {
-      this.dice = dice;             // e.g. [1,4,3,6,2]           // e.g. [false,true,false,false,false]
-      this.rollsLeft = rollsLeft;   // e.g. 2
-      this.turnsLeft = turnsLeft;   // e.g. 12
+      this.dice = dice;             
+      this.rollsLeft = rollsLeft;   
+      this.turnsLeft = turnsLeft;   
       this.scores = scores;         // e.g. { ones: 3, twos: null, … }
       this.scoredScores = scoredScores;
       this.combinedScores = combinedScores;
+      this.gamestate = gamestate;
+      this.isTurn = isTurn;
     }
   }
   

@@ -8,6 +8,7 @@ export class SocketWrapper {
   constructor(socket) {
     console.log(socket);
     this.socket = socket;
+    this.serverSessionToken = null;
     
   }
   get disconnected(){

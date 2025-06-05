@@ -58,6 +58,7 @@ export const EVENTS = {
       send_game_data: "send_game_data",
       send_to_home: "send_to_home",
       send_token: "send_token",
+      send_server_session_token: "send_server_session_token"
     },
   },
 };

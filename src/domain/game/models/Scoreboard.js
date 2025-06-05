@@ -41,7 +41,7 @@ export class Scoreboard {
   }
 
   hasScoredAll(){
-    const hasNull = Object.values(obj).some(value => value === null);
+    const hasNull = Object.values(this.scores).some(value => value === null);
     return !hasNull;
   }
 

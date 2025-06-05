@@ -107,13 +107,15 @@ export class Game {
 
     getGameData() {
         const diceValues = this.diceHandler.getDiceValues();
-
         const gameData = new PlayerGameData();
+
         gameData.dice = this.diceHandler.getDice();
         gameData.rollsLeft = this.turnHandler.getRollsLeft();
         gameData.scores = this.scoreHandler.calculateAllScores(diceValues);
         gameData.combinedScores = this.getCombinedScores();
         gameData.scoredScores = this.scoreboardHandler.scoreboard;
+        gameData.turnsLeft = this.turnHandler.turnsLeft;
+        gameData.gamestate = this.hasGameEnded() ? "ended" : "active";
         return gameData;
     }
 }

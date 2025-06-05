@@ -256,42 +256,41 @@ export class Result {
     }
   }
 
-  /**
-   * Chains synchronous bind operation and merges result data with existing data.
-   * @param {(data: T) => Result<object, E>} fn
-   * @returns {Result<object, E>}
+/**
+   * Synchronous bind with named key
+   * @template U
+   * @param {string} key
+   * @param {(data: T) => Result<U, E>} fn
+   * @returns {Result<T & { [key: string]: U }, E>}
    */
-  bindKeepSync(fn) {
+  bindKeepSync(key, fn) {
     if (this.isFailure()) return Result.failure(this.error);
     try {
-      const data = this.data;
-      const result = fn(data);
-      if (result.isFailure()) return Result.failure(result.getError());
-      const newData = result.unwrap();
-      return Result.success({ ...data, ...newData });
+      const result = fn(this.data);
+      if (result.isFailure()) return Result.failure(result.error);
+      return Result.success({ ...this.data, [key]: result.data });
     } catch (e) {
       return Result.failure(e);
     }
   }
 
   /**
-   * Chains asynchronous bind operation and merges result data with existing data.
-   * @param {(data: T) => Promise<Result<object, E>>} fn
-   * @returns {Promise<Result<object, E>>}
+   * Asynchronous bind with named key
+   * @template U
+   * @param {string} key
+   * @param {(data: T) => Promise<Result<U, E>>} fn
+   * @returns {Promise<Result<T & { [key: string]: U }, E>>}
    */
-  async bindKeepAsync(fn) {
+  async bindKeepAsync(key, fn) {
     if (this.isFailure()) return Result.failure(this.error);
     try {
-      const data = this.data;
-      const result = await fn(data);
-      if (result.isFailure()) return Result.failure(result.getError());
-      const newData = result.unwrap();
-      return Result.success({ ...data, ...newData });
+      const result = await fn(this.data);
+      if (result.isFailure()) return Result.failure(result.error);
+      return Result.success({ ...this.data, [key]: result.data });
     } catch (e) {
       return Result.failure(e);
     }
   }
-
   /**
    * Chains bind operation (sync or async) and merges result data with existing data.
    * @param {(data: T) => Result<object, E> | Promise<Result<object, E>>} fn

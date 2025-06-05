@@ -105,10 +105,14 @@ getAllUsers().then(result => {
 });
 
 console.log(await deleteAll(TABLES.LOBBIES));
-
+const serverSessionToken = uuidv4();
 io.use((socket, next) => {
-  const { token: storedToken, nickname, username, email } = socket.handshake.auth;
+  const { token: storedToken, nickname, username, email, serverSessionToken: socketServerSessionToken } = socket.handshake.auth;
+  console.log("a", socketServerSessionToken, socketServerSessionToken != null);
   console.log("SESSIONTOKEN", socket.handshake.auth);
+  if (socketServerSessionToken != serverSessionToken && socketServerSessionToken != null) {
+    return next(new Error("Old server session"));
+  }
 
   if (storedToken) {
     console.log("SESSIONTOKENS!!!", tokenToSessionDataMap);
@@ -157,6 +161,7 @@ io.use((socket, next) => {
     user,
     channels: { ...SOCKET_CHANNELS },
   });
+  console.log("CREATED NEW SESSIONDATA");
 
   tokenToSessionDataMap.set(sessionToken.token, sessionData);
   userIDtoSessionTokenMap.set(user.id, sessionToken);
@@ -168,12 +173,13 @@ io.use((socket, next) => {
   return next();
 });
 
-
 // Set up a simple connection event
 io.on("connection", (socket) => {
+  socket.emit(EVENTS.server.action.send_server_session_token, serverSessionToken);
+
   const sessionToken = socket.data.sessionToken;
   if (sessionToken) {
-    socket.emit(EVENTS.server.action.send_token, sessionToken)
+    socket.emit(EVENTS.server.action.send_token, sessionToken);
     const user = socket.data.user;
     const userID = user.id;
     const sessionTokenFromMap = userIDtoSessionTokenMap.get(userID);
@@ -256,7 +262,7 @@ function setupBaseSocketEvents(socket) {
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
     const sessionData = getSessionDataResult.unwrap();
-    const player = sessionData.gameManager.getPlayer();
+    const player = sessionData.player;
     if (!player) {
       sendToHome(socket);
       return;
@@ -264,7 +270,7 @@ function setupBaseSocketEvents(socket) {
     player.roll();
 
     socket.emit(EVENTS.server.response.roll, "rolling");
-    socket.emit(EVENTS.server.action.send_game_data, (await getGameData({ socket: socket })).unwrap());
+    socket.emit(EVENTS.server.action.send_game_data, (getGameData({ socket: socket })).unwrap());
   });
 
   socket.on(EVENTS.client.request.toggle_hold, async (index) => {
@@ -272,39 +278,47 @@ function setupBaseSocketEvents(socket) {
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
     const sessionData = getSessionDataResult.unwrap();
-    const player = sessionData.gameManager.getPlayer();
+    const player = sessionData.player;
     if (!player) {
       sendToHome(socket);
       return;
     }
     player.toggleHoldDie(index);
     //socket.emit(EVENTS.server.response.roll, "rolling");
-    socket.emit(EVENTS.server.action.send_game_data, (await getGameData({ socket: socket })).unwrap());
+    socket.emit(EVENTS.server.action.send_game_data, (getGameData({ socket: socket })).unwrap());
   });
 
   socket.on(EVENTS.client.request.score, async (category) => {
     console.log("score", category);
     const getSessionDataResult = getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
-    
+
     const sessionData = getSessionDataResult.unwrap();
-    const player = sessionData.gameManager.getPlayer();
+    const player = sessionData.player;
     if (!player) {
       sendToHome(socket);
       return;
     }
     player.score(category);
     socket.emit(EVENTS.server.response.score, "rolling");
-    socket.emit(EVENTS.server.action.send_game_data, (await getGameData({ socket: socket })).unwrap());
+    socket.emit(EVENTS.server.action.send_game_data, (getGameData({ socket: socket })).unwrap());
   });
 
   socket.on(EVENTS.client.request.message_room, ({ message }) => {
-    tryCatchAsync(async () => {
-      const sessionData = getSessionDataBySocket(socket).unwrap();
-      const room = sessionData.channels[SOCKET_CHANNELS.lobby];
-      console.log("sending a message to room", room);
-      socket.to(room).emit(EVENTS.client.broadcast.message_room, { sender: socket.user.nickname, message: message });
-    })
+    console.log("sending message to room", message);
+      console.log("has sent message:", tryCatchFlex(() => {
+      const messageResult = Result.success({})
+        .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
+        .bindKeepSync("room", ({sessionData}) => Result.success(sessionData.channels[SOCKET_CHANNELS.lobby]))
+        .bindKeepSync("user", ({sessionData}) => Result.success(sessionData.user))
+        .bindKeepSync("messageSent", ({user, room, sessionData}) => {
+          console.log(sessionData, room);
+          console.log(socket.rooms);
+          socket.to(room).emit(EVENTS.client.broadcast.message_room, { sender: user.nickname, message: message });
+          return Result.success(true);
+        })
+      return messageResult;
+    }).isSuccess())
   });
 
   socket.on(EVENTS.client.request.leave_lobby, async () => {
@@ -329,24 +343,23 @@ function setupBaseSocketEvents(socket) {
 async function socketRequestStartGame(socket) {
   console.log("trying to start game");
   const result = await tryCatchAsyncFlex(async () => {
-    console.log("does go wrong here?");
-    const sessionData = getSessionDataBySocket(socket).unwrap();
+    const result = Result.success({})
+      .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
+      .bindKeepSync("lobby", data => tryCatchFlex(() => {
+        const lobby = lobbiesMap.get(data.sessionData.lobby.id);
+        return lobby
+          ? Result.success(lobby)
+          : Result.failure("Lobby not found");
+      }))
+      .bindKeepSync("room", data => ensureResult(String, Error, () => data.sessionData.lobby.id))
+      .bindKeepSync("user", data => ensureResult(User, Error, () => data.sessionData.user))
+      .bindKeepSync("matchManager", data => makeNewGame({ room: data.room, owner: data.user }))
+      .bindKeepSync("player", data => data.matchManager.getPlayerOfUser(data.user))
+      .bindKeepSync("gameManager", data => data.matchManager.getGameManagerOfPlayer(data.player))
 
-    const lobbyID = sessionData.lobby.id;
-    const lobby = lobbiesMap.get(lobbyID);
-    if (!lobby) throw new Error("Lobby not found");
-
-    const room = lobby.id;
-    const user = sessionData.user;
-
-    const matchManager = makeNewGame({ room, owner: user }).unwrap();
-
-    const gameManager = matchManager
-      .getPlayerOfUser(user)
-      .bindSync(player => matchManager.getGameManagerOfPlayer(player))
-      .unwrap();
-
-    updateUserSessionData(user.id, { gameManager })
+    console.log("data", result)
+    const { player, gameManager, matchManager, user, room } = result.unwrap();
+    updateUserSessionData(user.id, { matchManager: matchManager, player: player, gameManager: gameManager })
     io.in(room).emit(EVENTS.server.response.start_game, "starting game");
 
     return true;
@@ -376,11 +389,8 @@ function getUserIdFromSocket(socket) {
 }
 
 function getSessionDataBySocket(socket) {
-  return tryCatchFlex(() => {
-    const result = getUserIdFromSocket(socket)
-      .bindSync(userID => getSessionDataByUserID(userID));
-    return result;
-  })
+  return getUserIdFromSocket(socket)
+    .bindSync(userID => getSessionDataByUserID(userID));
 }
 
 async function sendLobbiesToSocket(socket) {
@@ -601,11 +611,16 @@ function createLobby({
   return lobby;
 }
 
-function updateUserSessionData(userID, { lobby, gameManager, socketGroup, channels }) {
+function updateUserSessionData(userID, { lobby, matchManager, gameManager, player, socketGroup, channels }) {
   if (!userID) return Result.failure("No user ID");
 
   return getSessionDataByUserID(userID)
-    .mapSync(sessionData => SessionData.update(sessionData, { lobby, gameManager, socketGroup, channels }));
+    .mapSync(sessionData => {
+      const didUpdate = sessionData.update({ lobby, matchManager, gameManager, player, socketGroup, channels })
+      return didUpdate
+        ? Result.success("Successfully updated session data")
+        : Result.failure("Could not update session data");
+    });
 }
 
 async function storeLobby(lobby) {
@@ -663,10 +678,10 @@ function makeNewGame({ room, owner }) {
   return Result.success(matchManager);
 }
 
-async function getGameData({ socket }) {
-  const result = await getSessionDataBySocket(socket)
-  .bind(sessionData => sessionData.gameManager.getGameData());
-
+function getGameData({ socket }) {
+  const result = getSessionDataBySocket(socket)
+    .bindSync(sessionData => sessionData.gameManager.getGameData());
+  console.log(result);
   return result;
 }
 

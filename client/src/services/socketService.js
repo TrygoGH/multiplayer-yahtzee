@@ -7,6 +7,8 @@ import Result from "../utils/Result";
 
 let _socket = null;
 let socket = null;
+let serverSessionToken = null;
+
 export const lobbiesMapCache = new Map();
 export const lobbyTracker = { current: null };
 export const EVENTS = {
@@ -60,6 +62,7 @@ export const EVENTS = {
       send_game_data: "send_game_data",
       send_to_home: "send_to_home",
       send_token: "send_token",
+      send_server_session_token: "send_server_session_token",
     },
   },
 };
@@ -69,6 +72,10 @@ function setupSocket(socket) {
   socket.on(EVENTS.server.action.send_token, (sessionToken) =>{
     console.log("got token", sessionToken);
     console.log(setAuthData(sessionToken));
+  })
+  socket.on(EVENTS.server.action.send_server_session_token, (newServerSessionToken) =>{
+    console.log("got server token", newServerSessionToken);
+    socket.serverSessionToken = newServerSessionToken;
   })
   socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
     lobbiesMapCache.clear()
@@ -115,8 +122,16 @@ export function handleText(text) {
 
 
 export function connectSocket({token, username, email, nickname} = {}) {
+  console.log("we have socket:", _socket != null, socket != null);
+
+  if(_socket) {
+    console.log("disconnecting socket cause already connected");
+    socket = null;
+    _socket.disconnect(); 
+  }
+  const currentServerSessionToken = socket ? socket.serverSessionToken : null;
   _socket = io('http://localhost:3000', {
-    auth: {token, username, email, nickname}
+    auth: {token, username, email, nickname, serverSessionToken: currentServerSessionToken},
   });
 
   _socket.on('connect_error', (err) => {

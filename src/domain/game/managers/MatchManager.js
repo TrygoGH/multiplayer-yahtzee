@@ -5,6 +5,7 @@ import { User } from "../../user/User.js";
 import { LinkMap } from "../../../utils/Maps.js";
 import { TurnManager } from "./TurnManager.js";
 import { Result, tryCatch, tryCatchFlex } from "../../../utils/Result.js";
+import { MatchGameData } from "../models/MatchGameData.js";
 
 export class MatchManager {
     constructor() {
@@ -19,7 +20,7 @@ export class MatchManager {
             gameManager.init()
         });
 
-        
+
     }
 
     /** 
@@ -27,7 +28,7 @@ export class MatchManager {
     */
     addUserAsPlayer(user) {
         const gameManager = new GameManager();
-        gameManager.setPlayerData({nickname: user.username});
+        gameManager.setPlayerData({ nickname: user.username });
         gameManager.initGame();
         const player = gameManager.getPlayer();
         this.setPlayerControls(player);
@@ -51,7 +52,7 @@ export class MatchManager {
     start() {
         this.gameManager.start();
     }
-    
+
     isPlayerTurn(player) {
         const isPlayerTurn = this.turnManager.isPlayerTurn(player);
         const result = isPlayerTurn
@@ -91,13 +92,13 @@ export class MatchManager {
         return tryCatchFlex(() => {
             const isPlayerTurnResult = this.isPlayerTurn(player);
             if (isPlayerTurnResult.isFailure()) return isPlayerTurnResult;
-            
+
             const result = this.getGameManagerOfPlayer(player)
-            .bind(gameManager => gameManager.score(category))
-            
+                .bind(gameManager => gameManager.score(category))
+
             console.log(result);
             if (result.isFailure()) return result;
-            
+
             const { gameManager } = result;
             gameManager.nextTurn();
             this.turnManager.next();
@@ -111,7 +112,7 @@ export class MatchManager {
             const playerID = player.id;
             const hasGameManager = this.playerIdsGamesLinkMap.hasA(playerID);
             if (!hasGameManager) throw new Error(`Player ${player} does not have a GameManager`);
-    
+
             const gameManager = this.playerIdsGamesLinkMap.getForward(playerID);
             if (!gameManager) throw new Error(`Player ${player} has an empty GameManager`);
 
@@ -119,38 +120,38 @@ export class MatchManager {
         })
     }
 
-    getGameOfPlayer(player){
-        return tryCatch(() =>{
-        const game = this.getGameManagerOfPlayer(player)
-        .bindSync(gameManager => gameManager.getGame)
-        .unwrapOrThrow(("failed to get game of player"));
+    getGameOfPlayer(player) {
+        return tryCatch(() => {
+            const game = this.getGameManagerOfPlayer(player)
+                .bindSync(gameManager => gameManager.getGame)
+                .unwrapOrThrow(("failed to get game of player"));
 
-        return game;
+            return game;
         })
     }
 
-    getUserOfPlayer(player){
+    getUserOfPlayer(player) {
         return tryCatch(() => {
             const user = this.matchData.getUserIdByPlayer(player);
-            if(!user) throw new Error("User not found");
+            if (!user) throw new Error("User not found");
             return user;
         })
     }
 
-    
-    getPlayerOfUser(user){
+
+    getPlayerOfUser(user) {
         return tryCatch(() => {
             const player = this.matchData.getPlayerByUserID(user.id);
-            if(!player) throw new Error("Player not found");
+            if (!player) throw new Error("Player not found");
             return player;
         })
     }
 
-    getMatchData(){
+    getMatchData() {
         return this.matchData;
     }
 
-    getCurrentPlayer(){
+    getCurrentPlayer() {
         return this.turnManager.getCurrentPlayer();
     }
 
@@ -167,11 +168,23 @@ export class MatchManager {
         return Result.success(true);
     }
 
-    getGameDataOfPlayer(player){
+    getGameDataOfPlayer(player) {
         const result = this.getGameManagerOfPlayer(player)
-            .bindSync(gameManager => gameManager.getGameData());
+            .bindSync(gameManager => gameManager.getGameData())
+            .bindSync(gameData => tryCatchFlex(() => { gameData.isTurn = this.isPlayerTurn(player); return gameData }));
 
         return result;
     }
-    
+
+    getMatchData() {
+        return tryCatchFlex(() => {
+            const matchGameData = new MatchGameData();
+            const players = this.matchData.playersToUserIDsMap.forwardMap.keys();
+            for (const player of players) {
+                const gameData = this.getGameDataOfPlayer(player);
+                matchGameData.players.set(player.id, gameData);
+            }
+        })
+    }
+
 }
