@@ -74,8 +74,15 @@ function setupSocket(socket) {
     console.log(setAuthData(sessionToken));
   })
   socket.on(EVENTS.server.action.send_server_session_token, (newServerSessionToken) =>{
+    if(socket?.data?.serverSessionToken != newServerSessionToken && socket?.data?.serverSessionToken != null) socket.disconnect();
+    socket.data = {};
+    socket.data.serverSessionToken = newServerSessionToken;
+    serverSessionToken = newServerSessionToken;
+
     console.log("got server token", newServerSessionToken);
-    socket.serverSessionToken = newServerSessionToken;
+    console.log(socket.data.serverSessionToken);
+    console.log(serverSessionToken);
+
   })
   socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
     lobbiesMapCache.clear()
@@ -127,17 +134,17 @@ export function connectSocket({token, username, email, nickname} = {}) {
   if(_socket) {
     console.log("disconnecting socket cause already connected");
     socket = null;
-    _socket.disconnect(); 
+    _socket.disconnect()
   }
-  const currentServerSessionToken = socket ? socket.serverSessionToken : null;
   _socket = io('http://localhost:3000', {
-    auth: {token, username, email, nickname, serverSessionToken: currentServerSessionToken},
+    auth: {token, username, email, nickname, serverSessionToken: serverSessionToken},
   });
 
   _socket.on('connect_error', (err) => {
     _socket.disconnect();
     _socket = null;
-    if(socket) socket = null;
+    socket = null;
+    serverSessionToken = null;
     console.error('Socket connection error:', err.message);
   });
 

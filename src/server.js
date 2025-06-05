@@ -305,14 +305,14 @@ function setupBaseSocketEvents(socket) {
   });
 
   socket.on(EVENTS.client.request.message_room, ({ message }) => {
-    console.log("sending message to room", message);
+    console.log("sending message to room");
       console.log("has sent message:", tryCatchFlex(() => {
       const messageResult = Result.success({})
         .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
         .bindKeepSync("room", ({sessionData}) => Result.success(sessionData.channels[SOCKET_CHANNELS.lobby]))
         .bindKeepSync("user", ({sessionData}) => Result.success(sessionData.user))
-        .bindKeepSync("messageSent", ({user, room, sessionData}) => {
-          console.log(sessionData, room);
+        .bindKeepSync("messageSent", ({user, room}) => {
+          console.log(room);
           console.log(socket.rooms);
           socket.to(room).emit(EVENTS.client.broadcast.message_room, { sender: user.nickname, message: message });
           return Result.success(true);
@@ -493,9 +493,11 @@ async function replaceChannel({ socket, channelName, channelID }) {
       .bindAsync(async sessionData => {
         const { socketGroup, channels } = sessionData;
 
+        console.log("trying to join:", channelName, "with id:", channelID);
         await socketGroup.forEachAsync(async socket => {
-          await leaveRoom(socket, channels);
+          await leaveRoom(socket, channelID);
           await joinRoom(socket, channelID);
+          console.log("socket rooms", socket.rooms);
         });
 
         channels[channelName] = channelID;
