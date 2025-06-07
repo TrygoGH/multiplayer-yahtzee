@@ -12,7 +12,7 @@ export const routes = [
     meta: { hideNavbar: true },
   },
   {
-    path: '/login',
+    path: '/',
     name: 'Login',
     component: Login,
     meta: { hideNavbar: true },

@@ -34,6 +34,23 @@ export class Result {
     return new Result(false, undefined, error);
   }
 
+  static ifNotNull(data){
+    return isNullOrUndefined(data) ? Result.failure(data) : Result.success(data);
+  }
+
+  /**
+   * Wraps an existing Result inside a new Result with the same success/failure state.
+   * @param {Result<T, E>} result - The Result to wrap.
+   * @returns {Result<Result<T, E>, E>} A new Result wrapping the original.
+   */
+  static wrap(result) {
+    if (!(result instanceof Result)) throw new Error("Expected a Result");
+    return result.isSuccess()
+      ? Result.success(result)
+      : Result.failure(result);
+  }
+
+
   /** @returns {boolean} True if success. */
   isSuccess() {
     return this.success;
@@ -89,6 +106,100 @@ export class Result {
     }
     throw new Error("Cannot get error from a success result.");
   }
+
+  /**
+   * Executes a function and wraps the return value in a Result.
+   * Checks that the returned value matches one of the given value types (if any),
+   * and that caught errors match one of the error types (if any).
+   * 
+   * If no value types are specified, the success value is not type-checked.
+   * If no error types are specified, any thrown error results in a failure Result.
+   * 
+   * Throws immediately if neither value types nor error types are provided.
+   *
+   * @template V
+   * @template E
+   * @param {Object} options Options object.
+   * @param {() => V} options.fn Function to execute.
+   * @param {Array<Function|Object|string>} [options.vals=[]] List of acceptable success value types.
+   * @param {Array<Function|Object|string>} [options.errs=[]] List of acceptable error types.
+   * @returns {Result<V, E | string>} Result wrapping the success or failure.
+   * @throws {Error} Throws if no value types or error types are provided.
+   * @throws {TypeError} Throws if an unexpected error type is thrown.
+   */
+  static expectTypes({ fn, vals = [], errs = [] } = {}) {
+    vals = Array.isArray(vals) ? vals : [vals];
+    errs = Array.isArray(errs) ? errs : [errs];
+
+    if ((!vals || vals.length === 0) && (!errs || errs.length === 0)) {
+      throw new Error("ensureTypes requires at least one value type or error type to check against.");
+    }
+
+    try {
+      const val = fn();
+      if (vals.length && !matchesAnyType(val, vals)) {
+        return Result.failure(`Expected value of type(s) ${vals.map(t => t.name || t).join(", ")}, got ${typeof val}: ${formatValue(val)}`);
+      }
+      return Result.success(val);
+    } catch (err) {
+      if (errs.length) {
+        if (matchesAnyType(err, errs)) {
+          return Result.failure(err);
+        }
+        throw new TypeError(`Unexpected error: ${err}`);
+      }
+      return Result.failure(err);
+    }
+  }
+
+    /**
+   * Executes a function and wraps the return value in a Result.
+   * Checks that the returned value matches one of the given value types (if any),
+   * and that caught errors match one of the error types (if any).
+   * 
+   * If no value types are specified, the success value is not type-checked.
+   * If no error types are specified, any thrown error results in a failure Result.
+   * 
+   * Throws immediately if neither value types nor error types are provided.
+   *
+   * @template V
+   * @template E
+   * @param {Object} options Options object.
+   * @param {() => Result<T, E>} options.fn Function to execute.
+   * @param {Array<Function|Object|string>} [options.vals=[]] List of acceptable success value types.
+   * @param {Array<Function|Object|string>} [options.errs=[]] List of acceptable error types.
+   * @returns {Result<V, E | string>} Result wrapping the success or failure.
+   * @throws {Error} Throws if no value types or error types are provided.
+   * @throws {TypeError} Throws if an unexpected error type is thrown.
+   */
+  static expectTypesInside({ fn, vals = [], errs = [] } = {}) {
+    vals = Array.isArray(vals) ? vals : [vals];
+    errs = Array.isArray(errs) ? errs : [errs];
+
+    if ((!vals || vals.length === 0) && (!errs || errs.length === 0)) {
+      throw new Error("ensureTypes requires at least one value type or error type to check against.");
+    }
+
+    try {
+      const val = fn();
+      if (!val instanceof Result) throw new TypeError(`Expected return type of fn is ${typeof Result}, got ${typeof val}`)
+      if(val.isFailure()) throw val.getError();
+      const innerVal = val.unwrap();
+      if (vals.length && !matchesAnyType(innerVal, vals)) {
+        return Result.failure(`Expected value of type(s) ${vals.map(t => t.name || t).join(", ")}, got ${typeof innerVal}: ${formatValue(innerVal)}`);
+      }
+      return Result.success(innerVal);
+    } catch (err) {
+      if (errs.length) {
+        if (matchesAnyType(err, errs)) {
+          return Result.failure(err);
+        }
+        throw new TypeError(`Unexpected error: ${err}`);
+      }
+      return Result.failure(err);
+    }
+  }
+
 
   /**
    * Maps the success data synchronously, passes through failure unchanged.
@@ -256,13 +367,13 @@ export class Result {
     }
   }
 
-/**
-   * Synchronous bind with named key
-   * @template U
-   * @param {string} key
-   * @param {(data: T) => Result<U, E>} fn
-   * @returns {Result<T & { [key: string]: U }, E>}
-   */
+  /**
+     * Synchronous bind with named key
+     * @template U
+     * @param {string} key
+     * @param {(data: T) => Result<U, E>} fn
+     * @returns {Result<T & { [key: string]: U }, E>}
+     */
   bindKeepSync(key, fn) {
     if (this.isFailure()) return Result.failure(this.error);
     try {
@@ -327,7 +438,7 @@ export class Result {
   }
 
   /**
-   * Aggregates an array of Results into one Result containing an array of success values.
+   * Aggregates an array of Results into one Result containing an array of values.
    * If any Result is failure, returns the first failure.
    * @template U
    * @param {Result<U, E>[]} results
@@ -336,10 +447,13 @@ export class Result {
   static all(results) {
     const values = [];
     for (const res of results) {
-      if (res.isFailure()) {
-        return Result.failure(res.getError());
+      if (res.isFailure()){
+        const error = res.getError();
+        return Result.failure(error);
       }
-      values.push(res.unwrap());
+      else{
+        values.push(res.unwrap()) 
+      }
     }
     return Result.success(values);
   }
@@ -448,6 +562,16 @@ export function logResult(result) {
     console.log(result.data);
   }
 }
+/**
+ * Checks if a value matches a null or undefined typeSpec.
+ * @param {*} value
+ * @param {*} typeSpec
+ * @returns {boolean}
+ */
+function isNullOrUndefined(value, typeSpec) {
+  return (typeSpec === null && value === null) ||
+         (typeSpec === undefined && value === undefined);
+}
 
 /**
  * Checks if a value matches a given constructor type (primitive or class).
@@ -519,6 +643,7 @@ function isPlainObjectMatch(value, typeSpec) {
  */
 function matchesType(value, typeSpec) {
   return (
+    isNullOrUndefined(value, typeSpec) ||
     isConstructorMatch(value, typeSpec) ||
     isSpecificFunctionMatch(value, typeSpec) ||
     isFunctionSignatureMatch(value, typeSpec) ||
@@ -527,28 +652,55 @@ function matchesType(value, typeSpec) {
   );
 }
 
-/**
- * Executes a function and wraps the return value in a Result.
- * Matches valueType or errorType.
- * @template V
- * @template E
- * @param {*} valueType Expected type of success value.
- * @param {*} errorType Expected type of error.
- * @param {() => V} fn Function to execute.
- * @returns {Result<V, E | string>}
- */
-export function ensureResult(valueType, errorType, fn) {
-  try {
-    const val = fn();
-    if (val instanceof Result) return val;
-    if (!matchesType(val, valueType)) {
-      return Result.failure(`Expected value of type ${valueType}, got ${typeof val}`);
-    }
-    return Result.success(val);
-  } catch (err) {
-    if (matchesType(err, errorType)) {
-      return Result.failure(err);
-    }
-    return Result.failure(`Unexpected error: ${err}`);
+function matchesAnyType(value, types) {
+  if (!Array.isArray(types)) {
+    types = [types];
   }
+  for (const type of types) {
+    if (matchesType(value, type)) {
+      return true;
+    }
+  }
+  return false;
 }
+
+/**
+ * Formats a value into a human-readable string, attempting to show the type, class name,
+ * and shallow contents (1-level depth) of objects like Set, Map, and plain objects.
+ *
+ * - Primitives are stringified using `JSON.stringify`.
+ * - Sets are shown as `Set { val1, val2, ... }`.
+ * - Maps are shown as `Map { key1 => val1, ... }`.
+ * - Objects are shown as `ClassName { key1: val1, key2: val2, ... }` (up to 5 keys).
+ *
+ * @param {*} val - The value to format.
+ * @returns {string} A human-readable string representation of the input value.
+ */
+function formatValue(val) {
+    if (val === null) return 'null';
+    if (typeof val === 'undefined') return 'undefined';
+    if (typeof val !== 'object') return JSON.stringify(val);
+
+    const className = val.constructor?.name || 'Object';
+
+    if (val instanceof Set) {
+        return `${className} { ${[...val].map(v => formatValue(v)).join(', ')} }`;
+    }
+
+    if (val instanceof Map) {
+        return `${className} { ${[...val.entries()].map(([k, v]) => `${formatValue(k)} => ${formatValue(v)}`).join(', ')} }`;
+    }
+
+    try {
+        const entries = Object.entries(val)
+            .slice(0, 5) // limit to avoid too much output
+            .map(([k, v]) => `${k}: ${formatValue(v)}`)
+            .join(', ');
+        return `${className} { ${entries} }`;
+    } catch (e) {
+        return `${className}`;
+    }
+}
+
+
+

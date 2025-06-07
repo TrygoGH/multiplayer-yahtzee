@@ -62,14 +62,14 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { getSocketSafe, EVENTS, lobbyTracker } from '@/services/socketService'
+import { getSocketSafe, EVENTS, channels } from '@/services/socketService'
 import { PlayerGameData } from '@/models/playerGameData';
 import Player from '../models/Player';
 
 const router = useRouter()
 const socket = getSocketSafe().unwrapOrThrow();
 
-const lobbyName = ref(lobbyTracker.current?.name || 'Game Room')
+const lobbyName = ref('Game Room')
 const chatMessages = ref([])
 const chatMessage = ref('')
 const chatBox = ref(null)
@@ -95,7 +95,6 @@ function sendMessage() {
   const text = chatMessage.value.trim()
   if (!text) return
   socket.emit(EVENTS.client.request.message_room, {
-    room: lobbyTracker.current.id,
     message: text
   })
   console.log("sending message");
@@ -112,7 +111,6 @@ function appendMessage(sender, message) {
 
 function leaveLobby() {
   socket.emit(EVENTS.client.request.leave_lobby)
-  lobbyTracker.current = null
   router.push({ name: 'LobbySelect' })
 }
 

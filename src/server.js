@@ -6,7 +6,7 @@ import { Server as SocketServer, Socket } from "socket.io";
 import Lobby from './models/Lobby.js';  // Ensure this path is correct for your project structure
 import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
-import { Result, ensureResult, tryCatch, tryCatchAsync, tryCatchAsyncFlex, tryCatchFlex } from "./utils/Result.js";
+import { Result, tryCatch, tryCatchAsync, tryCatchAsyncFlex, tryCatchFlex } from "./utils/Result.js";
 import { getConnection, testConnection } from "./database/database.js";
 import { deleteOldLobbies, deleteAll, getAllUsers, getMySQLDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
 import User from "./domain/user/User.js";
@@ -20,8 +20,13 @@ import { UserSocketConnections } from "./domain/user/userSocketConnections.js";
 import { MatchManager } from "./domain/game/managers/MatchManager.js";
 import { LinkMap } from "./utils/Maps.js";
 import { SessionData } from "./domain/session/SessionData.js";
-import { SocketGroup } from "./domain/socket/socketGroup.js";
+import { SocketGroup } from "./domain/socket/SocketGroup.js";
 import { SessionToken } from "./domain/session/SessionToken.js";
+import { ChannelManager } from "./domain/channels/ChannelManager.js";
+import { Channel } from "./domain/channels/Channel.js";
+import { Any, match } from "./utils/Match.js";
+import { curry } from "./utils/Curry.js";
+import { Failure, matchToResult } from "./utils/ResultMatch.js";
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 Uncaught Exception:', err);
@@ -71,8 +76,12 @@ const io = new SocketServer(server, {
 const lobbiesMap = new Map();
 const matchesMap = new Map();
 const SOCKET_CHANNELS = {
-  lobby: "lobby",
-};
+  rooms: {
+    lobby: "lobby",
+  }
+}
+
+console.log(SOCKET_CHANNELS);
 
 console.log(path.join(__dirname, "../node_modules/socket.io-client/dist/socket.io.min.js"));
 
@@ -159,7 +168,9 @@ io.use((socket, next) => {
     sessionToken,
     socketGroup: new SocketGroup([socket]),
     user,
-    channels: { ...SOCKET_CHANNELS },
+    channelManager: new ChannelManager({
+      rooms: [new Channel("lobby", null)]
+    }),
   });
   console.log("CREATED NEW SESSIONDATA");
 
@@ -187,9 +198,6 @@ io.on("connection", (socket) => {
     console.log(token);
     const sessionData = tokenToSessionDataMap.get(token);
     const sessionUser = sessionData.user;
-    sessionData.channels = {
-      lobby: null,
-    };
     Tests.assertEqual({
       actual: sessionUser,
       expected: user,
@@ -251,13 +259,13 @@ function setupBaseSocketEvents(socket) {
     })
     console.log(lobby);
     await storeLobby(lobby);
-    await sendLobbiesToSocket(socket);
-    console.log(await joinLobbyResponse({ socket: socket, newLobbyID: lobby.id }));
+    sendLobbiesToSocket(socket);
+    console.log(joinLobbyResponse({ socket: socket, newLobbyID: lobby.id }));
   });
 
   socket.on(EVENTS.client.request.start_game, () => socketRequestStartGame(socket));
 
-  socket.on(EVENTS.client.request.roll, async () => {
+  socket.on(EVENTS.client.request.roll, () => {
     const getSessionDataResult = getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
@@ -273,14 +281,15 @@ function setupBaseSocketEvents(socket) {
     socket.emit(EVENTS.server.action.send_game_data, (getGameData({ socket: socket })).unwrap());
   });
 
-  socket.on(EVENTS.client.request.toggle_hold, async (index) => {
+  socket.on(EVENTS.client.request.toggle_hold, (index) => {
     const getSessionDataResult = getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
     const sessionData = getSessionDataResult.unwrap();
     const player = sessionData.player;
     if (!player) {
-      sendToHome(socket);
+      console.log(sessionData)
+      //sendToHome(socket);
       return;
     }
     player.toggleHoldDie(index);
@@ -288,7 +297,7 @@ function setupBaseSocketEvents(socket) {
     socket.emit(EVENTS.server.action.send_game_data, (getGameData({ socket: socket })).unwrap());
   });
 
-  socket.on(EVENTS.client.request.score, async (category) => {
+  socket.on(EVENTS.client.request.score, (category) => {
     console.log("score", category);
     const getSessionDataResult = getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
@@ -306,27 +315,25 @@ function setupBaseSocketEvents(socket) {
 
   socket.on(EVENTS.client.request.message_room, ({ message }) => {
     console.log("sending message to room");
-      console.log("has sent message:", tryCatchFlex(() => {
+    console.log("has sent message:", tryCatchFlex(() => {
       const messageResult = Result.success({})
         .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
-        .bindKeepSync("room", ({sessionData}) => Result.success(sessionData.channels[SOCKET_CHANNELS.lobby]))
-        .bindKeepSync("user", ({sessionData}) => Result.success(sessionData.user))
-        .bindKeepSync("messageSent", ({user, room}) => {
+        .bindKeepSync("channelManager", ({ sessionData }) => Result.expectTypes({ vals: ChannelManager, fn: () => sessionData.channelManager }))
+        .bindKeepSync("channel", ({ channelManager }) => Result.expectTypes({ vals: Channel, fn: () => channelManager.getRoom(SOCKET_CHANNELS.rooms.lobby) }))
+        .bindKeepSync("room", ({ channel }) => Result.expectTypes({ vals: [String], fn: () => channel.channelId }))
+        .bindKeepSync("user", ({ sessionData }) => Result.success(sessionData.user))
+        .bindKeepSync("messageSent", ({ user, room }) => {
           console.log(room);
           console.log(socket.rooms);
           socket.to(room).emit(EVENTS.client.broadcast.message_room, { sender: user.nickname, message: message });
           return Result.success(true);
         })
       return messageResult;
-    }).isSuccess())
+    }))
   });
 
-  socket.on(EVENTS.client.request.leave_lobby, async () => {
-    tryCatchAsync(async () => {
-      const sessionData = getSessionDataBySocket(socket).unwrap();
-      const user = sessionData.user;
-      await leaveLobbyResponse(user);
-    })
+  socket.on(EVENTS.client.request.leave_lobby, () => {
+    leaveLobbyResponse(socket);
   })
 
 
@@ -334,42 +341,79 @@ function setupBaseSocketEvents(socket) {
     sendLobbiesToSocket(socket);
   });
 
-  socket.on(EVENTS.client.request.join_lobby, async ({ newLobbyID }) => {
+  socket.on(EVENTS.client.request.join_lobby, ({ newLobbyID }) => {
     console.log("trying to join lobby", newLobbyID);
-    await joinLobbyResponse({ socket: socket, newLobbyID: newLobbyID });
+    joinLobbyResponse({ socket: socket, newLobbyID: newLobbyID });
   })
 }
 
-async function socketRequestStartGame(socket) {
+function socketRequestStartGame(socket) {
   console.log("trying to start game");
-  const result = await tryCatchAsyncFlex(async () => {
+  const result = tryCatchFlex(() => {
     const result = Result.success({})
       .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
-      .bindKeepSync("lobby", data => tryCatchFlex(() => {
-        const lobby = lobbiesMap.get(data.sessionData.lobby.id);
-        return lobby
-          ? Result.success(lobby)
-          : Result.failure("Lobby not found");
-      }))
-      .bindKeepSync("room", data => ensureResult(String, Error, () => data.sessionData.lobby.id))
-      .bindKeepSync("user", data => ensureResult(User, Error, () => data.sessionData.user))
-      .bindKeepSync("matchManager", data => makeNewGame({ room: data.room, owner: data.user }))
-      .bindKeepSync("player", data => data.matchManager.getPlayerOfUser(data.user))
-      .bindKeepSync("gameManager", data => data.matchManager.getGameManagerOfPlayer(data.player))
+      .bindKeepSync("lobby", ({ sessionData }) => Result.expectTypes({ vals: Lobby, fn: () => lobbiesMap.get(sessionData.lobby.id) }))
+      .bindKeepSync("isOwner", ({ sessionData, lobby }) => {
+        const user = sessionData.user;
+        const owner = lobby.owner;
+        return matchToResult(user.id, [
+          [owner.id, () => `User with id "${user.id}" is owner of lobby with id ${lobby.id}.`],
+          [Failure, () => `User with id "${user.id}" is not owner of lobby with id ${lobby.id}. Owner of that lobby is ${owner.id}`]
+        ]
+        )
+      })
+      .bindKeepSync("addPlayersToGameData", ({ lobby }) => addPlayersFromLobbyToGame(lobby))
+      .bindKeepSync("room", ({ lobby }) => Result.expectTypes({ vals: String, fn: () => lobby.id }))
+      .bindKeepSync("test", ({ lobby, addPlayersToGameData }) => Result.success(console.log(lobby, "addplayer", addPlayersToGameData.matchManager)))
 
     console.log("data", result)
-    const { player, gameManager, matchManager, user, room } = result.unwrap();
-    updateUserSessionData(user.id, { matchManager: matchManager, player: player, gameManager: gameManager })
+    const { players, matchManager, user, room } = result.unwrap();
     io.in(room).emit(EVENTS.server.response.start_game, "starting game");
 
     return true;
   });
   if (result.isFailure()) {
-    console.error(result.getError());
+    //console.error(result.getError());
     sendToHome(socket);
     // Optionally emit failure event here, if you want
     // io.in(room).emit(EVENTS.server.response.start_game, "couldnt start game");
   }
+}
+
+function addPlayersFromLobbyToGame(lobby) {
+  console.log("lobby", lobby);
+  const result = Result.success({})
+    .bindKeepSync("room", _ => Result.expectTypes({ vals: String, fn: () => lobby.id }))
+    .bindKeepSync("owner", _ => Result.expectTypes({ vals: User, fn: () => lobby.owner }))
+    .bindKeepSync("users", _ => Result.expectTypes({ vals: Set, fn: () => lobby.getUsers() }))
+    .bindKeepSync("a", ({ users }) => Result.success(console.log("users", users)))
+    .bindKeepSync("matchManager", ({ room, owner }) => makeNewGame({ room: room, owner: owner }))
+    .bindKeepSync("addUsersToGameResult", ({ users, matchManager }) => {
+      const results = [];
+      for (const user of users) {
+        const addResult = matchManager.addUserAsPlayer(user);
+        results.push(addResult);
+      }
+      return Result.wrap(Result.all(results));
+    })
+    .bindKeepSync("playerToUserIdMap", ({ matchManager }) => Result.expectTypes({ vals: Map, fn: () => matchManager.getPlayerUserMap() }))
+    .bindKeepSync("updateUserSessions", ({ matchManager, playerToUserIdMap }) => {
+      const results = [];
+      console.log("playerrrrrrrr");
+      console.log("playerrrrrrrr");
+      console.log("playerrrrrrrr");
+      console.log(playerToUserIdMap, playerToUserIdMap.entries())
+
+      for (const [player, userID] of playerToUserIdMap.entries()) {
+        console.log("playerrrrrrrr", player, userID);
+        const gameManager = matchManager.getGameManagerOfPlayer(player).unwrap();
+        const updateResult = updateUserSessionData(userID, { matchManager: matchManager, player: player, gameManager: gameManager })
+        results.push(updateResult);
+      }
+      return Result.wrap(Result.all(results));
+    })
+
+  return result;
 }
 
 function getSessionDataByUserID(userID) {
@@ -393,65 +437,53 @@ function getSessionDataBySocket(socket) {
     .bindSync(userID => getSessionDataByUserID(userID));
 }
 
-async function sendLobbiesToSocket(socket) {
+function sendLobbiesToSocket(socket) {
   console.log(`sending lobbies to ${socket.id}`);
   console.log(lobbiesMap.size);
   const lobbyKeys = Array.from(lobbiesMap.keys());
   const lobbyValues = Array.from(lobbiesMap.values());
   socket.emit(EVENTS.server.response.get_lobbies, { lobbyKeys: lobbyKeys, lobbyValues: lobbyValues });
 }
-async function joinRoom(socket, room) {
+function joinRoom(socket, room) {
   socket.join(room);
   return Result.success(`Joined room: ${room}`);
 }
 
-async function leaveRoom(socket, room) {
+function leaveRoom(socket, room) {
   socket.leave(room);
   return Result.success(`Left room: ${room}`);
 }
 
-async function joinLobby({ socket, lobby }) {
-  const getSessionDataResult = getSessionDataBySocket(socket);
-  if (getSessionDataResult.isFailure()) return getSessionDataResult;
-
-  const sessionData = getSessionDataResult.unwrap();
-  const user = sessionData.user;
-  const userID = user.id;
-  lobby.addPlayer({ user: user });
-  updateUserSessionData(userID, {
-    lobby: lobby,
-  })
-  return Result.success(lobby);
+function joinLobby({ user, lobby }) {
+  return Result.success({})
+    .bindKeepSync("sessionData", () => getSessionDataByUserID(user.id))
+    .bindKeepSync("user", ({ sessionData }) => Result.expectTypes({ vals: User, fn: () => sessionData.user }))
+    .bindKeepSync("addUserResult", ({ user }) => Result.wrap(lobby.addUser(user)))
+    .bindKeepSync("updateUserSessionResult", ({ user }) => updateUserSessionData(user.id, { lobby: lobby, }))
 }
 
-async function leaveLobby({ socket, lobby }) {
-  const getSessionDataResult = getSessionDataBySocket(socket);
-  if (getSessionDataResult.isFailure()) return getSessionDataResult;
-
-  const sessionData = getSessionDataResult.unwrap();
-  const user = sessionData.user;
-  const userID = user.id;
-  lobby.removePlayer({ user: user });
-  updateUserSessionData(userID, {
-    lobby: null,
-  })
-  return Result.success("Left lobby");
+function leaveLobby({ user, lobby }) {
+  return Result.success({})
+    .bindKeepSync("sessionData", () => getSessionDataByUserID(user.id))
+    .bindKeepSync("user", ({ sessionData }) => Result.expectTypes({ vals: User, fn: () => sessionData.user }))
+    .bindKeepSync("addUserResult", ({ user }) => Result.wrap(lobby.removeUser(user)))
+    .bindKeepSync("updateUserSessionResult", ({ user }) => updateUserSessionData(user.id, { lobby: null, }))
 }
 
-async function switchLobbies({ socket, lobby }) {
-  const leaveLobbyResult = await leaveLobby({
-    socket: socket,
+function switchLobbies({ user, lobby }) {
+  const leaveLobbyResult = leaveLobby({
+    user: user,
     lobby: lobby,
   });
 
-  const joinLobbyResult = await joinLobby({
-    socket: socket,
+  const joinLobbyResult = joinLobby({
+    user: user,
     lobby: lobby,
   });
-  return Result.success([joinLobbyResult, leaveLobbyResult]);
+  return joinLobbyResult;
 }
 
-async function getLobby(lobbyID) {
+function getLobby(lobbyID) {
   const lobby = lobbiesMap.get(lobbyID);
   const lobbyResult = lobby
     ? Result.success(lobby)
@@ -459,7 +491,7 @@ async function getLobby(lobbyID) {
   return lobbyResult;
 }
 
-async function joinChannel({ socket, channelID, channelName }) {
+function joinChannel({ socket, channelID, channelName }) {
   const getSessionDataResult = getSessionDataBySocket(socket);
   if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
@@ -467,13 +499,13 @@ async function joinChannel({ socket, channelID, channelName }) {
   const channels = sessionData.channels;
   if (channels[channelID]) return Result.failure("Already in channel with same name");
 
-  await joinRoom(socket, channelID);
+  joinRoom(socket, channelID);
   channels[channelName] = channelID;
   return Result.success("Joined channel");
 }
 
-async function leaveChannel({ socket, channelName, channelID }) {
-  return tryCatchAsync(async () => {
+function leaveChannel({ socket, channelName, channelID }) {
+  return tryCatch(() => {
     getSessionDataBySocket(socket);
     if (getSessionDataResult.isFailure()) return getSessionDataResult;
 
@@ -481,111 +513,112 @@ async function leaveChannel({ socket, channelName, channelID }) {
     const channels = sessionData.channels;
     if (!channels[channelID]) return Result.failure("Already not in that channel");
 
-    await leaveRoom(socket, channelID);
+    leaveRoom(socket, channelID);
     delete channels[channelName];
     return Result.success("Left channel");
   })
 }
 
-async function replaceChannel({ socket, channelName, channelID }) {
-  const result = await tryCatchAsyncFlex(async () =>
-    await getSessionDataBySocket(socket)
-      .bindAsync(async sessionData => {
-        const { socketGroup, channels } = sessionData;
-
-        console.log("trying to join:", channelName, "with id:", channelID);
-        await socketGroup.forEachAsync(async socket => {
-          await leaveRoom(socket, channelID);
-          await joinRoom(socket, channelID);
-          console.log("socket rooms", socket.rooms);
-        });
-
-        channels[channelName] = channelID;
-        console.log("im being run!!!!");
-        return Result.success("Replaced channel");
-      })
-  );
+function replaceChannel({ socket, channelName, channelID }) {
+  console.log("trying to join:", channelName, "with id:", channelID);
+  const result = Result.success({})
+    .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
+    .bindKeepSync("socketGroup", ({ sessionData }) => Result.expectTypes({ vals: SocketGroup, fn: () => sessionData.socketGroup }))
+    .bindKeepSync("channelManager", ({ sessionData }) => Result.expectTypes({ vals: ChannelManager, fn: () => sessionData.channelManager }))
+    .bindKeepSync("a", ({ channelManager }) => Result.success(console.log(channelManager.getRoom(channelName))))
+    .bindKeepSync("b", ({ channelManager }) => Result.success(console.log(channelName, "channelName")))
+    .bindKeepSync("currentChannelId", ({ channelManager }) => Result.expectTypes({ vals: [String, null], fn: () => channelManager.getRoom(channelName).channelId }))
+    .bindKeepSync("updateSockets", ({ socketGroup, currentChannelId }) => {
+      const results = [];
+      console.log("current", currentChannelId, channelID);
+      socketGroup.forEach(socket => {
+        console.log("socket rooms pre", socket.rooms);
+        const leaveRoomResult = leaveRoom(socket, currentChannelId);
+        const joinRoomResult = channelID ? joinRoom(socket, channelID) : Result.success("No room to join");
+        results.push(leaveRoomResult);
+        results.push(joinRoomResult);
+        console.log("socket rooms", socket.rooms);
+      });
+      return Result.all(results);
+    })
+    .bindKeepSync("setRoom", ({ channelManager }) => Result.expectTypes({ vals: Boolean, fn: () => channelManager.setRoom(new Channel(channelName, channelID)) }))
   return result;
 }
 
-async function joinLobbyResponse({ socket, newLobbyID }) {
-  const getSessionDataResult = getSessionDataBySocket(socket);
-  if (getSessionDataResult.isFailure()) return getSessionDataResult;
+function joinLobbyResponse({ socket, newLobbyID }) {
+  const result = Result.success({})
+    .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
+    .bindKeepSync("currentLobby", ({ sessionData }) => Result.expectTypes({ vals: [Lobby, null], fn: () => sessionData.lobby }))
+    .bindKeepSync("isInLobby", ({ currentLobby }) =>
+      match(currentLobby?.id, [
+        [newLobbyID, () => Result.failure(true)],
+        [Any, () => Result.success(false)],
+      ]))
+    .bindKeepSync("lobby", () => getLobby(newLobbyID))
+    .bindKeepSync("user", ({ sessionData }) => Result.expectTypes({ vals: [User], fn: () => sessionData.user }))
+    .bindKeepSync("updateResult", ({ user, lobby }) => updateUserSessionData(user.id, { lobby: lobby }))
+    .bindKeepSync("replaceAndSwitch", ({ user, lobby }) => {
+      const results = [];
+      const replaceChannelResult = replaceChannel({
+        socket: socket,
+        channelName: SOCKET_CHANNELS.rooms.lobby,
+        channelID: newLobbyID,
+      });
+      results.push(replaceChannelResult);
 
-  const sessionData = getSessionDataResult.unwrap();
-  const currentLobby = sessionData.lobby;
-  if (currentLobby !== null && currentLobby.id === newLobbyID) {
-    socket.emit(EVENTS.server.response.join_lobby, Result.failure("Client is already in this lobby"));
-    return;
+      const switchLobbiesResult = switchLobbies({
+        user: user,
+        lobby: lobby,
+      });
+      results.push(switchLobbiesResult);
+
+      const all = Result.all(results);
+      return all;
+    })
+
+  if (result.isFailure()) {
+
+    socket.emit(EVENTS.server.response.join_lobby, result);
+    return result;
   }
-
-  const lobbyResult = await getLobby(newLobbyID);
-  if (lobbyResult.isFailure()) {
-    socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
-    return;
-  }
-
-  const lobby = lobbyResult.unwrap();
-  const user = sessionData.user;
-  const userID = user.id;
-  lobby.addPlayer(userID);
-
-  const replaceChannelResult = await replaceChannel({
-    socket: socket,
-    channelName: SOCKET_CHANNELS.lobby,
-    channelID: newLobbyID,
-  });
-  const switchLobbiesResult = await switchLobbies({
-    socket: socket,
-    lobby: lobby,
-  });
-  socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
-
+  socket.emit(EVENTS.server.response.join_lobby, result);
   console.log("JOINED", newLobbyID);
-  Tests.assertTrue({
-    value: switchLobbiesResult.isSuccess(),
-    message: "switchLobbiesResult should always pass"
-  });
-  Tests.assertTrue({
-    value: replaceChannelResult.isSuccess(),
-    message: "replaceChannelResult should always pass"
-  });
-  Tests.assertNotNull({
-    value: lobby,
-    message: "lobby should not be null",
-  });
-
-
+  return result;
 }
 
-async function leaveLobbyResponse(user) {
-  const result = await tryCatchAsync(async () => {
-    const sessionData = getSessionDataByUserID(user.id).unwrap();
-    const user = sessionData.user;
-    const socketGroup = sessionData.socketGroup;
-    const currentLobby = sessionData.lobby;
-    const currentLobbyID = currentLobby.id;
+function leaveLobbyResponse(socket) {
+  const result = tryCatch(() => {
+    return Result.success({})
+      .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
+      .bindKeepSync("user", ({ sessionData }) => Result.expectTypes({ vals: User, fn: () => sessionData.user }))
+      .bindKeepSync("lobby", ({ sessionData }) => Result.expectTypes({ vals: [Lobby, null], fn: () => sessionData.lobby }))
+      .bindKeepSync("socketGroup", ({ sessionData }) => Result.expectTypes({ vals: [SocketGroup], fn: () => sessionData.socketGroup }))
+      .bindKeepSync("socketReplace", ({ socketGroup, lobby, user }) => {
+        const results = [];
+        socketGroup.forEach(socket => {
+          const replaceChannelResult = replaceChannel({
+            socket: socket,
+            channelName: SOCKET_CHANNELS.rooms.lobby,
+            channelID: null,
+          });
+          const leaveLobbyResult = leaveLobby({
+            user: user,
+            lobby: lobby,
+          });
+          results.push(replaceChannelResult);
+          results.push(leaveLobbyResult);
+          if (replaceChannelResult.isSuccess() || leaveLobbyResult.isSuccess()) {
+            socket.emit(EVENTS.server.response.leave_lobby, Result.success("Left lobby"));
+          }
+        });
 
-    const lobby = await getLobby(currentLobbyID).unwrap();
-    const userID = user.id;
-    lobby.addPlayer(userID);
-
-    const replaceChannelResult = await replaceChannel({
-      socket: socket,
-      channelName: SOCKET_CHANNELS.lobby,
-      channelID: newLobbyID,
-    });
-    const switchLobbiesResult = await switchLobbies({
-      socket: socket,
-      lobby: lobby,
-    });
-
-    socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
-
-    console.log("JOINED", newLobbyID);
+        return Result.all(results);
+      })
+      .bindKeepSync("updateUserResult", ({ user }) => updateUserSessionData(user.id, { lobby: null }))
   })
   if (result.isFailure()) {
-    socket.emit(EVENTS.server.response.join_lobby, lobbyResult);
+    console.log("socket with id:", socket.id, "could not leeave lobby", result);
+    socket.emit(EVENTS.server.response.leave_lobby, Result.failure("Could not leave lobby"));
     return;
   }
 }
@@ -613,15 +646,20 @@ function createLobby({
   return lobby;
 }
 
+function addUserToLobby() {
+
+}
 function updateUserSessionData(userID, { lobby, matchManager, gameManager, player, socketGroup, channels }) {
   if (!userID) return Result.failure("No user ID");
 
   return getSessionDataByUserID(userID)
-    .mapSync(sessionData => {
+    .bindSync(sessionData => {
       const didUpdate = sessionData.update({ lobby, matchManager, gameManager, player, socketGroup, channels })
-      return didUpdate
-        ? Result.success("Successfully updated session data")
-        : Result.failure("Could not update session data");
+      const result = matchToResult(didUpdate, [
+        [true, () => "Successfully updated session data"],
+        [Failure, () => "Could not update session data"],
+      ])
+      return result;
     });
 }
 
@@ -664,19 +702,201 @@ function sendToHome(socket) {
   socket.emit(EVENTS.server.action.send_to_home);
 }
 
+function matchTests() {
+  // === 1. Primitive match ===
+  Tests.assertEqual({
+    message: 'Match primitive number (exact)',
+    actual: match(42, [
+      [1, () => 'one'],
+      [42, () => 'the answer'],
+      [Any, () => 'fallback'],
+    ]),
+    expected: 'the answer',
+  });
+
+  // === 2. Predicate function ===
+  Tests.assertEqual({
+    message: 'Match via predicate: value is even',
+    actual: match(8, [
+      [x => x < 0, () => 'negative'],
+      [x => x % 2 === 0, () => 'even'],
+      [Any, () => 'fallback'],
+    ]),
+    expected: 'even',
+  });
+
+  // === 3. Deep object matching ===
+  Tests.assertEqual({
+    message: 'Match object with exact structure and values',
+    actual: match({ role: 'admin', id: 1 }, [
+      [{ role: 'user' }, () => 'user'],
+      [{ role: 'admin', id: 1 }, () => 'admin'],
+      [Any, () => 'unknown'],
+    ]),
+    expected: 'admin',
+  });
+
+  // === 4. Partial deep object match ===
+  Tests.assertEqual({
+    message: 'Match object with subset pattern (deep match)',
+    actual: match({ name: 'Alice', age: 30, active: true }, [
+      [{ active: false }, () => 'inactive'],
+      [{ name: 'Alice' }, () => 'found Alice'],
+      [Any, () => 'no match'],
+    ]),
+    expected: 'found Alice',
+  });
+
+  // === 5. Fallback to Any ===
+  Tests.assertEqual({
+    message: 'Fallback match using Any wildcard',
+    actual: match('something', [
+      ['this', () => 'nope'],
+      ['that', () => 'still nope'],
+      [Any, () => 'caught'],
+    ]),
+    expected: 'caught',
+  });
+
+  // === 6. No match throws ===
+  Tests.assertThrows({
+    message: 'Throws when nothing matches and no Any fallback exists',
+    fn: () => match(100, [
+      [x => x < 10, () => 'low'],
+      [x => x > 1000, () => 'high'],
+    ]),
+  });
+
+}
+
+function expectTypesInsideTests() {
+  class CustomError extends Error { }
+  class AnotherError extends Error { }
+  // ========== TEST CASES ==========
+
+  // ✅ Success: Matching value type
+  Tests.assertEqual({
+    message: "Returns success when value type matches",
+    actual: Result.expectTypesInside({
+      fn: () => Result.success(42),
+      vals: Number
+    }).isFailure(),
+    expected: false
+  });
+
+  // ❌ Fail: Value type mismatch
+  Tests.assertTrue({
+    message: "Returns failure when value type does not match",
+    value: Result.expectTypesInside({
+      fn: () => Result.success("oops"),
+      vals: Number
+    }).isFailure()
+  });
+
+  // ✅ Success: Throws error that matches type
+  Tests.assertEqual({
+    message: "Returns failure when error type matches",
+    actual: Result.expectTypesInside({
+      fn: () => Result.failure(new CustomError("boom")),
+      errs: [CustomError]
+    }).getError() instanceof CustomError,
+    expected: true
+  });
+
+  // ❌ Fail: Error type doesn't match
+  Tests.assertThrows({
+    message: "Throws if error type doesn't match",
+    fn: () => Result.expectTypesInside({
+      fn: () => Result.failure(new Error("unhandled")),
+      errs: [CustomError]
+    })
+  });
+
+  // ❌ Fail: Not a Result return type
+  Tests.assertTrue({
+    message: "Throws but catches and returns result if fn() does not return a Result",
+    value: Result.expectTypesInside({
+      fn: () => 123,
+      vals: Number
+    }).isFailure()
+  });
+
+  // ❌ Fail: No value or error types provided
+  Tests.assertThrows({
+    message: "Throws if neither vals nor errs are provided",
+    fn: () => Result.expectTypesInside({
+      fn: () => Result.success(1)
+    })
+  });
+
+  // ✅ Success: Uses object pattern match
+  Tests.assertTrue({
+    message: "Returns success when object matches",
+    value: !Result.expectTypesInside({
+      fn: () => Result.success({ type: "ok", code: 200 }),
+      vals: [{ type: "ok" }]
+    }).isFailure()
+  });
+}
+function curryTests() {
+  function subtract(a, b) {
+    return a - b;
+  }
+
+  const curriedSubtract = curry(subtract);
+
+  // === Tests ===
+  Tests.assertEqual({
+    message: "Curried subtract: full application",
+    actual: curriedSubtract(5, 2),
+    expected: 3
+  });
+
+  Tests.assertEqual({
+    message: "Curried subtract: partial then full",
+    actual: curriedSubtract(5)(2),
+    expected: 3
+  });
+
+  const subtractFrom10 = curriedSubtract(10);
+
+  Tests.assertEqual({
+    message: "Curried subtract: partially applied subtractFrom10(4)",
+    actual: subtractFrom10(4),
+    expected: 6
+  });
+
+  Tests.assertEqual({
+    message: "Curried subtract: subtractFrom10(0)",
+    actual: subtractFrom10(0),
+    expected: 10
+  });
+
+  Tests.assertEqual({
+    message: "Curried subtract: subtractFrom10(10)",
+    actual: subtractFrom10(10),
+    expected: 0
+  });
+}
+function tests() {
+  expectTypesInsideTests();
+  matchTests();
+  curryTests();
+  Tests.summary();
+}
+
 // Start the server on port 3000
 server.listen(PORT, () => {
   const currentTime = new Date();
   const formattedTime = `${currentTime.getHours()}:${currentTime.getMinutes()}:${currentTime.getSeconds()}`;
   console.log(`Server is running on http://localhost:${PORT}. Started at ${formattedTime}`);
-
+  tests();
 });
 
 
-function makeNewGame({ room, owner }) {
+function makeNewGame({ room }) {
   const matchManager = new MatchManager();
   matchManager.init(room);
-  matchManager.addUserAsPlayer(owner)
   return Result.success(matchManager);
 }
 

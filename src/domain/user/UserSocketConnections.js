@@ -1,4 +1,4 @@
-import { SocketGroup } from "../socket/socketGroup.js"
+import { SocketGroup } from "../socket/SocketGroup.js"
 
 export class UserSocketConnections {
   constructor() {

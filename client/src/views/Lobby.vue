@@ -30,7 +30,7 @@
   <script setup>
   import { ref, onMounted, nextTick } from 'vue'
   import { useRouter } from 'vue-router' // Import the router to use its functionality
-  import { getSocketSafe, handleText, lobbyTracker, EVENTS} from '@/services/socketService';
+  import { getSocketSafe, handleText, channels, EVENTS} from '@/services/socketService';
   
   const router = useRouter() // Initialize Vue Router
 
@@ -56,8 +56,8 @@ const socket = (() => {
   function sendMessage() {
     const trimmed = chatMessage.value.trim()
     if (trimmed) {
-      console.log(`Sending message to room ${lobbyTracker.current.id}`);
-      socket.emit(EVENTS.client.request.message_room, {room: lobbyTracker.current.id, message: trimmed})
+      console.log(`Sending message to lobby`);
+      socket.emit(EVENTS.client.request.message_room, {message: trimmed})
       appendMessage("You", trimmed)
       chatMessage.value = ""
     }
@@ -74,20 +74,19 @@ const socket = (() => {
   
   function leaveLobby() {
     socket.emit(EVENTS.client.request.leave_lobby)
-    lobbyTracker.current = null;
     router.push({ name: 'LobbySelect' }) 
   }
   
   function startGame() {
     console.log(EVENTS.client.request.start_game);
-    socket.emit(EVENTS.client.request.start_game, lobbyTracker.current.id);
+    socket.emit(EVENTS.client.request.start_game);
     console.log("Start game requested")
   }
   
   onMounted(() => {
-    console.log("Chicken jockey!", lobbyTracker.current);
+    console.log("Chicken jockey!");
     socket.on(EVENTS.client.broadcast.message_room, ({ sender, message }) => {
-      console.log(`got message! ${message}`);
+      console.log(`got message ${message} from ${sender}!`);
       appendMessage(sender, message)
     })
 

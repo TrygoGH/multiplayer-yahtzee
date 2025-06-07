@@ -12,6 +12,7 @@ export class MatchManager {
         this.playerIdsGamesLinkMap = new LinkMap();
         this.turnManager = new TurnManager();
         this.matchData = new MatchData();
+        this.ownerID = null;
     }
 
     init(matchID) {
@@ -27,17 +28,19 @@ export class MatchManager {
     * @param {User} user
     */
     addUserAsPlayer(user) {
-        const gameManager = new GameManager();
-        gameManager.setPlayerData({ nickname: user.username });
-        gameManager.initGame();
-        const player = gameManager.getPlayer();
-        this.setPlayerControls(player);
-        this.playerIdsGamesLinkMap.set(player.id, gameManager);
-        this.matchData.linkUserIdToPlayer({
-            userID: user.id,
-            player: player
-        });
-        //console.log(this.matchData.playersToUserIDsMap);
+        return tryCatchFlex(() => {
+            const gameManager = new GameManager();
+            gameManager.setPlayerData({ nickname: user.username });
+            gameManager.initGame();
+            const player = gameManager.getPlayer();
+            this.setPlayerControls(player);
+            this.playerIdsGamesLinkMap.set(player.id, gameManager);
+            this.matchData.linkUserIdToPlayer({
+                userID: user.id,
+                player: player
+            });
+            return Result.success(`Added user with id ${user.id} to game`);
+        })
     }
 
     setPlayerControls(player) {
@@ -185,6 +188,18 @@ export class MatchManager {
                 matchGameData.players.set(player.id, gameData);
             }
         })
+    }
+
+    getPlayers(){
+        return this.matchData.getPlayers();
+    }
+
+    getUserIds(){
+        return this.matchData.getUserIDs();
+    }
+
+    getPlayerUserMap(){
+        return this.matchData.playersToUserIDsMap.forwardMap;
     }
 
 }

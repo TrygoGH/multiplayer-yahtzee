@@ -25,4 +25,12 @@ export class MatchData{
     getPlayerByUserID(userID){
         return this.playersToUserIDsMap.getReverse(userID);
     }
+
+    getPlayers(){
+        return this.playersToUserIDsMap.forwardMap.keys();
+    }
+
+    getUserIDs(){
+        return this.playersToUserIDsMap.forwardMap.values();
+    }
 }

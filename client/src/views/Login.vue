@@ -50,8 +50,12 @@ import { v4 } from 'uuid'
   
   const continueAsGuest = () => {
     if (!nickname.value.trim()) return
+    guestLogin(nickname.value.trim());
+  }
+
+  function guestLogin(nickname){
     const guestUsername = `guest${v4()}`;
-    const mockUser = {username: guestUsername, nickname: nickname.value}
+    const mockUser = {username: guestUsername, nickname}
 
     const connectionResult = connectSocket(mockUser);
     console.log(connectionResult);
@@ -63,7 +67,10 @@ import { v4 } from 'uuid'
   onMounted(() =>{
     console.log(localStorage);
       const getTokenResult = getAuthData();
-      if(getTokenResult.isFailure()) return;
+      if(getTokenResult.isFailure()) {
+        guestLogin("Trygo");
+        return;
+      }
 
       const {token} = getTokenResult.unwrap();
       const connectionResult = connectSocket(token);

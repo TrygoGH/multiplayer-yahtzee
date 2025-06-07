@@ -54,6 +54,12 @@ export class Tests {
         showSkip: false,
     };
 
+    static showAll = {
+        showPass: true,
+        showFail: true,
+        showSkip: true,
+    };
+
     static doTests = true;
     static results = [];
 

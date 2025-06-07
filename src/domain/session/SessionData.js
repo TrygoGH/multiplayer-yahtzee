@@ -1,3 +1,4 @@
+import { ChannelManager } from "../channels/ChannelManager.js";
 import { MatchManager } from "../game/managers/MatchManager.js";
 import { SocketGroup } from "../socket/SocketGroup.js";
 
@@ -24,7 +25,7 @@ export class SessionData {
     player = null,
     gameManager = null,
     socketGroup = new SocketGroup(),
-    channels = {},
+    channelManager = new ChannelManager(),
   }) {
     this.user = user; // plain user object
     this.sessionToken = sessionToken;
@@ -33,7 +34,7 @@ export class SessionData {
     this.gameManager = gameManager;
     this.player = player;
     this.socketGroup = socketGroup;
-    this.channels = channels;
+    this.channelManager = channelManager;
   }
 
   isExpired() {
@@ -46,23 +47,26 @@ export class SessionData {
     player,
     gameManager,
     socketGroup,
-    channels,
+    channelManager,
   }) {
-
-    if (lobby !== undefined) this.lobby = lobby;
-    if (matchManager !== undefined) this.matchManager = matchManager;
-    if (player !== undefined) this.player = player;
-    if (gameManager !== undefined) this.gameManager = gameManager;
-    if (socketGroup !== undefined) this.socketGroup = socketGroup;
-    if (channels !== undefined) this.channels = channels;
+    try {
+      if (lobby !== undefined) this.lobby = lobby;
+      if (matchManager !== undefined) this.matchManager = matchManager;
+      if (player !== undefined) this.player = player;
+      if (gameManager !== undefined) this.gameManager = gameManager;
+      if (socketGroup !== undefined) this.socketGroup = socketGroup;
+      if (channelManager !== undefined) this.channelManager = channelManager;
+    } catch (error) {
+      return false;
+    }
+    return true;
   }
 
-  setChannel({ channelID, channelName }) {
-    if (!this.channels) return false;
-    if (!channelID || !channelName) return false;
+  setRoom({ channelName, channelID }) {
+    return this.channelManager.setRoom(channelName, channelID);
+  }
 
-    this.channels[channelID] = channelName;
-
-    return true;
+  removeRoom(channelName){
+    return this.channelManager.deleteRoom(channelName);
   }
 }

@@ -25,7 +25,7 @@ class Lobby {
     this.name = name;
     this.owner = owner;
     this.maxPlayers = maxPlayers;
-    this.playerIDs = new Set(); // Ordered collection of players
+    this.users = new Set(); // Ordered collection of players
   }
 
   /**
@@ -45,21 +45,34 @@ class Lobby {
     return lobby;
   }
 
-  addPlayer(userID) {
-    console.log("added user", userID);
-    if (this.playerIDs.length >= this.maxPlayers) return new Result.failure("Lobby is full");
+  addUser(user) {
+    console.log("added user", user);
+    if (this.users.length >= this.maxPlayers) return new Result.failure("Lobby is full");
+    const previousSize = this.users.size;
 
-    this.playerIDs.add(userID);
-    return Result.success("Added player")
+    this.users.add(user);
+    if (this.users.size === previousSize) return Result.failure("User already in game");
+
+    return Result.success("Added player");
   }
 
-  removePlayer(userID) {
-    console.log("a", this.playerIDs);
-    this.playerIDs.delete(userID);
+  removeUser(targetUser) {
+    let hasRemovedUser = false;
+    for(const user of this.users){
+      if(user.id === targetUser.id) {
+        hasRemovedUser = this.users.delete(user);
+        break;
+      }
+    }
+    console.log("a", this.users);
+    return hasRemovedUser ? Result.success(`Removed user, found: ${targetUser.id}`) : Result.failure(`Could not remove user, could not find: ${targetUser.id}`);
   }
 
-  getPlayer(index) {
-    return this.playerIDs[index] || null;
+  getUser(index) {
+    return this.users[index] || null;
+  }
+  getUsers(){
+    return this.users;
   }
 }
 

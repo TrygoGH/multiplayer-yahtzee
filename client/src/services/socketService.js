@@ -10,7 +10,10 @@ let socket = null;
 let serverSessionToken = null;
 
 export const lobbiesMapCache = new Map();
-export const lobbyTracker = { current: null };
+export const SOCKET_CHANNELS = {
+  lobby: "lobby",
+};
+export const channels = {};
 export const EVENTS = {
   client: {
     request: {
@@ -84,6 +87,7 @@ function setupSocket(socket) {
     console.log(serverSessionToken);
 
   })
+  
   socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
     lobbiesMapCache.clear()
     lobbyKeys.forEach((key, index) => {
@@ -94,7 +98,7 @@ function setupSocket(socket) {
 
   socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {
     if (lobbyJoinResult.success) {
-      lobbyTracker.current = lobbyJoinResult.data
+      channels[SOCKET_CHANNELS.lobby] = lobbyJoinResult.data.id;
     }
   })
 
@@ -116,13 +120,13 @@ export function joinLobby(newLobby) {
 }
 
 export function handleText(text) {
-  if (!lobbyTracker.current) {
+  if (!channels[SOCKET_CHANNELS.lobby]) {
     console.warn("You're not in a room")
     return
   }
 
   socket.emit(EVENTS.client.request.message_room, {
-    room: lobbyTracker.current.id,
+    room: channels[SOCKET_CHANNELS.lobby],
     message: text
   })
 }

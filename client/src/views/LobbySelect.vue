@@ -23,7 +23,7 @@
 
 <script setup>
 // Import relevant services, constants, and Vue Router
-import { getLobbies, getSocketSafe, handleText, lobbyTracker, lobbiesMapCache, joinLobby, EVENTS} from '@/services/socketService';
+import { getLobbies, getSocketSafe, handleText, channels, lobbiesMapCache, joinLobby, EVENTS} from '@/services/socketService';
 import Lobby from '@/models/Lobby';
 import { useRouter } from 'vue-router';  // Import useRouter to use routing
 
@@ -75,6 +75,7 @@ function setupSocketEvents(){
   console.log(socket);
   // Listen for socket events
 socket.on(EVENTS.server.action.message, (data) => {
+  console.log("got response", data)
   responseMessage.value = data;
 });
 
@@ -89,10 +90,10 @@ socket.on(EVENTS.server.response.get_lobbies, ({ lobbyKeys, lobbyValues }) => {
 
 socket.on(EVENTS.server.response.join_lobby, (lobbyJoinResult) => {
   if (lobbyJoinResult.success) {
-    lobbyTracker.current = lobbyJoinResult.data;
-    responseMessage.value = `Joined lobby with id: ${lobbyTracker.current.id}`;
+    const lobby = lobbyJoinResult.data;
+    responseMessage.value = `Joined lobby with id: ${lobby.id}`;
     // After successfully joining, route to the Lobby page
-    router.push({ name: 'Lobby', params: { lobbyId: lobbyTracker.current.id } });
+    router.push({ name: 'Lobby', params: { lobbyId: lobby.id } });
   } else {
     responseMessage.value = lobbyJoinResult.error;
   }
