@@ -93,17 +93,13 @@ export class MatchManager {
 
     score(player, category) {
         return tryCatchFlex(() => {
-            const isPlayerTurnResult = this.isPlayerTurn(player);
-            if (isPlayerTurnResult.isFailure()) return isPlayerTurnResult;
+            const result = Result.success({})
+                .bindKeepSync("isPlayerTurn", () => this.isPlayerTurn(player))
 
-            const result = this.getGameManagerOfPlayer(player)
-                .bind(gameManager => gameManager.score(category))
-
-            console.log(result);
+                .bindKeepSync("gameManager", () => this.getGameManagerOfPlayer(player))
+                .bindKeepSync("scoreResult", ({ gameManager }) => Result.expectTypes({ vals: Result, fn: () => gameManager.score(category) }))
             if (result.isFailure()) return result;
-
-            const { gameManager } = result;
-            gameManager.nextTurn();
+            console.log("turn next");
             this.turnManager.next();
 
             return Result.success(`successfully scored in category ${category}`);
@@ -190,15 +186,15 @@ export class MatchManager {
         })
     }
 
-    getPlayers(){
+    getPlayers() {
         return this.matchData.getPlayers();
     }
 
-    getUserIds(){
+    getUserIds() {
         return this.matchData.getUserIDs();
     }
 
-    getPlayerUserMap(){
+    getPlayerUserMap() {
         return this.matchData.playersToUserIDsMap.forwardMap;
     }
 

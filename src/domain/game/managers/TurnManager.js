@@ -1,31 +1,29 @@
-import { TurnHandler } from "../handlers/turnHandler.js";
-
-export class TurnManager{
-    constructor(){
+export class TurnManager {
+    constructor() {
         this.playerTurnIndex = 0;
         this.playerList = new Set();
     }
 
-    init(){
+    init() {
         this.playerTurnIndex = 0;
     }
 
-    addPlayer(player){
+    addPlayer(player) {
         this.playerList.add(player)
     }
 
-    next(){
+    next() {
         const max = this.playerList.size;
         const nextIndex = this.playerTurnIndex + 1;
         this.playerTurnIndex = nextIndex % max;
     }
 
-    getCurrentPlayer(){
+    getCurrentPlayer() {
         const playerArray = [...this.playerList];
         return playerArray[this.playerTurnIndex];
     }
 
-    isPlayerTurn(player){
+    isPlayerTurn(player) {
         const playerArray = [...this.playerList];
         const isPlayerTurn = playerArray[this.playerTurnIndex] == player;
         return isPlayerTurn;

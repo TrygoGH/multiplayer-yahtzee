@@ -53,6 +53,7 @@ export class GameManager {
         
         if (result.isFailure()) return result;
         this.game.nextTurn();
+        return result;
     }
 
     getGame() {

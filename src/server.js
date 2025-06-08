@@ -364,10 +364,10 @@ function socketRequestStartGame(socket) {
       })
       .bindKeepSync("addPlayersToGameData", ({ lobby }) => addPlayersFromLobbyToGame(lobby))
       .bindKeepSync("room", ({ lobby }) => Result.expectTypes({ vals: String, fn: () => lobby.id }))
-      .bindKeepSync("test", ({ lobby, addPlayersToGameData }) => Result.success(console.log(lobby, "addplayer", addPlayersToGameData.matchManager)))
+      .bindKeepSync("matchManager", ({ addPlayersToGameData }) => Result.expectTypes({ vals: MatchManager, fn: () => addPlayersToGameData.matchManager}))
+      //.bindKeepSync("test", ({ lobby, addPlayersToGameData }) => Result.success(console.log(lobby, "addplayer", addPlayersToGameData.matchManager)))
 
-    console.log("data", result)
-    const { players, matchManager, user, room } = result.unwrap();
+    const { room } = result.unwrap();
     io.in(room).emit(EVENTS.server.response.start_game, "starting game");
 
     return true;
