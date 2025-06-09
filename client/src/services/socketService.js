@@ -140,7 +140,7 @@ export function connectSocket({token, username, email, nickname} = {}) {
     socket = null;
     _socket.disconnect()
   }
-  _socket = io(process.env.VUE_APP_BACKEND_URL, {
+  _socket = io(import.meta.env.VITE_API_URL, {
     auth: {token, username, email, nickname, serverSessionToken: serverSessionToken},
   });
 
