@@ -7,8 +7,8 @@ import Lobby from './models/Lobby.js';  // Ensure this path is correct for your 
 import { v4 as uuidv4 } from "uuid";
 import { EVENTS } from './constants/socketEvents.js';
 import { Result, tryCatch, tryCatchAsync, tryCatchAsyncFlex, tryCatchFlex } from "./utils/Result.js";
-import { getConnection, testConnection } from "./database/database.js";
-import { deleteOldLobbies, deleteAll, getAllUsers, getMySQLDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
+import { getConnection, testConnection } from "./database/databasePG.js";
+import { deleteOldLobbies, deleteAll, getAllUsers, getPostgresDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
 import User from "./domain/user/User.js";
 import { LobbySchema } from "./database/tables/LobbySchema.js";
 import { REFUSED } from "dns";
@@ -27,6 +27,7 @@ import { Channel } from "./domain/channels/Channel.js";
 import { Any, match } from "./utils/Match.js";
 import { curry } from "./utils/Curry.js";
 import { Failure, matchToResult } from "./utils/ResultMatch.js";
+import { ChannelCollection } from "./domain/channels/ChannelCollection.js";
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 Uncaught Exception:', err);
@@ -190,6 +191,8 @@ io.on("connection", (socket) => {
 
   const sessionToken = socket.data.sessionToken;
   if (sessionToken) {
+    console.log(reconnectSocketToRooms(socket));
+    console.log("connected! toekn")
     socket.emit(EVENTS.server.action.send_token, sessionToken);
     const user = socket.data.user;
     const userID = user.id;
@@ -212,6 +215,29 @@ io.on("connection", (socket) => {
   //sendLobbiesToSocket(socket);  
 });
 
+function reconnectSocketToRooms(socket) {
+  const result = Result.success({})
+    .bindKeepSync("sessionData", () => getSessionDataBySocket(socket))
+    .bindKeepSync("channelManager", ({ sessionData }) => Result.expectTypes({ vals: ChannelManager, fn: () => sessionData.channelManager }))
+    .bindKeepSync("rooms", ({ channelManager }) => Result.expectTypes({ vals: Object, fn: () => channelManager.getAllRooms() }))
+    .bindKeepSync("joinRoomResults", ({ rooms }) => {
+      const results = [];
+      console.log("Rooms to reconnect to", rooms);
+      console.log("socket rooms pre:", socket.rooms)
+      for (const [channelKey, channel] of Object.entries(rooms)) {
+        console.log("Channel to reconnect to", rooms);
+        const channelName = channel.channelName;
+        const channelId = channel.channelId;
+        const joinRoomResult = joinRoom(socket, channelId);
+        results.push(joinRoomResult);
+        console.log("CHANNEL TO RECONNECT TOOOOO", channelName, channelId);
+      }
+      console.log("socket rooms:", socket.rooms)
+      return Result.all(results);
+    });
+
+  return result
+}
 function addConnectedUser(user) {
   const userID = user?.username;
   connectedUsersMap.set(userID, user);
@@ -324,7 +350,7 @@ function setupBaseSocketEvents(socket) {
         .bindKeepSync("user", ({ sessionData }) => Result.success(sessionData.user))
         .bindKeepSync("messageSent", ({ user, room }) => {
           console.log(room);
-          console.log(socket.rooms);
+          console.log("socket rooms:", socket.rooms);
           socket.to(room).emit(EVENTS.client.broadcast.message_room, { sender: user.nickname, message: message });
           return Result.success(true);
         })
@@ -364,8 +390,8 @@ function socketRequestStartGame(socket) {
       })
       .bindKeepSync("addPlayersToGameData", ({ lobby }) => addPlayersFromLobbyToGame(lobby))
       .bindKeepSync("room", ({ lobby }) => Result.expectTypes({ vals: String, fn: () => lobby.id }))
-      .bindKeepSync("matchManager", ({ addPlayersToGameData }) => Result.expectTypes({ vals: MatchManager, fn: () => addPlayersToGameData.matchManager}))
-      //.bindKeepSync("test", ({ lobby, addPlayersToGameData }) => Result.success(console.log(lobby, "addplayer", addPlayersToGameData.matchManager)))
+      .bindKeepSync("matchManager", ({ addPlayersToGameData }) => Result.expectTypes({ vals: MatchManager, fn: () => addPlayersToGameData.matchManager }))
+    //.bindKeepSync("test", ({ lobby, addPlayersToGameData }) => Result.success(console.log(lobby, "addplayer", addPlayersToGameData.matchManager)))
 
     const { room } = result.unwrap();
     io.in(room).emit(EVENTS.server.response.start_game, "starting game");
@@ -537,7 +563,7 @@ function replaceChannel({ socket, channelName, channelID }) {
         const joinRoomResult = channelID ? joinRoom(socket, channelID) : Result.success("No room to join");
         results.push(leaveRoomResult);
         results.push(joinRoomResult);
-        console.log("socket rooms", socket.rooms);
+        console.log("socket rooms", socket.rooms, channelID ? true : false);
       });
       return Result.all(results);
     })
