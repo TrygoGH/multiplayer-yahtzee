@@ -68,7 +68,6 @@ import { v4 } from 'uuid'
     console.log(localStorage);
       const getTokenResult = getAuthData();
       if(getTokenResult.isFailure()) {
-        guestLogin("Trygo");
         return;
       }
 
