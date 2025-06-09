@@ -11,14 +11,10 @@ import { getConnection, testConnection } from "./database/databasePG.js";
 import { deleteOldLobbies, deleteAll, getAllUsers, getPostgresDate, insertLobby, registerUser, selectLobby } from "./database/dbUserFunctions.js";
 import User from "./domain/user/User.js";
 import { LobbySchema } from "./database/tables/LobbySchema.js";
-import { REFUSED } from "dns";
 import { TABLES } from "./database/dbTableNames.js";
 import { Tests } from "./utils/Test.js";
-import { Player } from "./domain/game/models/Player.js";
-import { time } from "console";
-import { UserSocketConnections } from "./domain/user/userSocketConnections.js";
+import { UserSocketConnections } from "./domain/user/UserSocketConnections.js";
 import { MatchManager } from "./domain/game/managers/MatchManager.js";
-import { LinkMap } from "./utils/Maps.js";
 import { SessionData } from "./domain/session/SessionData.js";
 import { SocketGroup } from "./domain/socket/SocketGroup.js";
 import { SessionToken } from "./domain/session/SessionToken.js";
@@ -27,7 +23,6 @@ import { Channel } from "./domain/channels/Channel.js";
 import { Any, match } from "./utils/Match.js";
 import { curry } from "./utils/Curry.js";
 import { Failure, matchToResult } from "./utils/ResultMatch.js";
-import { ChannelCollection } from "./domain/channels/ChannelCollection.js";
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 Uncaught Exception:', err);
