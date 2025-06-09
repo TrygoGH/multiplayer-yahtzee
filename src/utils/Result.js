@@ -34,7 +34,7 @@ export class Result {
     return new Result(false, undefined, error);
   }
 
-  static ifNotNull(data){
+  static ifNotNull(data) {
     return isNullOrUndefined(data) ? Result.failure(data) : Result.success(data);
   }
 
@@ -152,26 +152,26 @@ export class Result {
     }
   }
 
-    /**
-   * Executes a function and wraps the return value in a Result.
-   * Checks that the returned value matches one of the given value types (if any),
-   * and that caught errors match one of the error types (if any).
-   * 
-   * If no value types are specified, the success value is not type-checked.
-   * If no error types are specified, any thrown error results in a failure Result.
-   * 
-   * Throws immediately if neither value types nor error types are provided.
-   *
-   * @template V
-   * @template E
-   * @param {Object} options Options object.
-   * @param {() => Result<T, E>} options.fn Function to execute.
-   * @param {Array<Function|Object|string>} [options.vals=[]] List of acceptable success value types.
-   * @param {Array<Function|Object|string>} [options.errs=[]] List of acceptable error types.
-   * @returns {Result<V, E | string>} Result wrapping the success or failure.
-   * @throws {Error} Throws if no value types or error types are provided.
-   * @throws {TypeError} Throws if an unexpected error type is thrown.
-   */
+  /**
+ * Executes a function and wraps the return value in a Result.
+ * Checks that the returned value matches one of the given value types (if any),
+ * and that caught errors match one of the error types (if any).
+ * 
+ * If no value types are specified, the success value is not type-checked.
+ * If no error types are specified, any thrown error results in a failure Result.
+ * 
+ * Throws immediately if neither value types nor error types are provided.
+ *
+ * @template V
+ * @template E
+ * @param {Object} options Options object.
+ * @param {() => Result<T, E>} options.fn Function to execute.
+ * @param {Array<Function|Object|string>} [options.vals=[]] List of acceptable success value types.
+ * @param {Array<Function|Object|string>} [options.errs=[]] List of acceptable error types.
+ * @returns {Result<V, E | string>} Result wrapping the success or failure.
+ * @throws {Error} Throws if no value types or error types are provided.
+ * @throws {TypeError} Throws if an unexpected error type is thrown.
+ */
   static expectTypesInside({ fn, vals = [], errs = [] } = {}) {
     vals = Array.isArray(vals) ? vals : [vals];
     errs = Array.isArray(errs) ? errs : [errs];
@@ -183,7 +183,7 @@ export class Result {
     try {
       const val = fn();
       if (!val instanceof Result) throw new TypeError(`Expected return type of fn is ${typeof Result}, got ${typeof val}`)
-      if(val.isFailure()) throw val.getError();
+      if (val.isFailure()) throw val.getError();
       const innerVal = val.unwrap();
       if (vals.length && !matchesAnyType(innerVal, vals)) {
         return Result.failure(`Expected value of type(s) ${vals.map(t => t.name || t).join(", ")}, got ${typeof innerVal}: ${formatValue(innerVal)}`);
@@ -234,27 +234,6 @@ export class Result {
   }
 
   /**
-   * Maps success data with a function that can return sync or Promise result.
-   * @template U
-   * @param {(data: T) => U | Promise<U>} fn
-   * @returns {Promise<Result<U, E>>}
-   */
-  async map(fn) {
-    if (this.isFailure()) return Result.failure(this.error);
-    try {
-      const result = fn(this.data);
-      if (result instanceof Promise) {
-        const awaited = await result;
-        return Result.success(awaited);
-      } else {
-        return Result.success(result);
-      }
-    } catch (e) {
-      return Result.failure(e);
-    }
-  }
-
-  /**
    * Maps the error synchronously, passes through success unchanged.
    * @param {(error: E | string) => E | string} fn
    * @returns {Result<T, E>}
@@ -284,25 +263,6 @@ export class Result {
     }
   }
 
-  /**
-   * Maps error with a function that can return sync or Promise error.
-   * @param {(error: E | string) => E | string | Promise<E | string>} fn
-   * @returns {Promise<Result<T, E>>}
-   */
-  async mapError(fn) {
-    if (this.isSuccess()) return Result.success(this.data);
-    try {
-      const result = fn(this.error);
-      if (result instanceof Promise) {
-        const awaited = await result;
-        return Result.failure(awaited);
-      } else {
-        return Result.failure(result);
-      }
-    } catch (e) {
-      return Result.failure(e);
-    }
-  }
 
   /**
    * Chains synchronous bind operation, expects fn to return Result.
@@ -340,32 +300,38 @@ export class Result {
   }
 
   /**
-   * Chains bind operation, fn can return Result or Promise<Result>.
-   * If fn returns a non-Result value, wraps it in success.
-   * @template U
-   * @param {(data: T) => Result<U, E> | Promise<Result<U, E>> | U | Promise<U>} fn
-   * @returns {Promise<Result<U, E>>}
-   */
-  async bind(fn) {
-    if (this.isFailure()) return Result.failure(this.error);
-    try {
-      const result = fn(this.data);
-      if (result instanceof Promise) {
-        const awaitedResult = await result;
-        if (awaitedResult instanceof Result) {
-          return awaitedResult;
-        }
-        return Result.success(awaitedResult);
-      } else {
-        if (result instanceof Result) {
-          return result;
-        }
-        return Result.success(result);
+ * Executes a side-effect function on success without modifying the result (sync).
+ * @param {(data: T) => void} fn
+ * @returns {Result<T, E>}
+ */
+  tapSync(fn) {
+    if (this.isSuccess()) {
+      try {
+        fn(this.data);
+      } catch (e) {
+        return Result.failure(e);
       }
+    }
+    return this;
+  }
+
+
+  /**
+ * Executes a side-effect function on success without modifying the result (async).
+ * @param {(data: T) => Promise<void>} fn
+ * @returns {Promise<Result<T, E>>}
+ */
+async tapAsync(fn) {
+  if (this.isSuccess()) {
+    try {
+      await fn(this.data);
     } catch (e) {
       return Result.failure(e);
     }
   }
+  return this;
+}
+
 
   /**
      * Synchronous bind with named key
@@ -402,27 +368,6 @@ export class Result {
       return Result.failure(e);
     }
   }
-  /**
-   * Chains bind operation (sync or async) and merges result data with existing data.
-   * @param {(data: T) => Result<object, E> | Promise<Result<object, E>>} fn
-   * @returns {Promise<Result<object, E>>}
-   */
-  async bindKeep(fn) {
-    if (this.isFailure()) return Result.failure(this.error);
-    try {
-      const result = fn(this.data);
-      if (result instanceof Promise) {
-        const awaitedResult = await result;
-        if (awaitedResult.isFailure()) return Result.failure(awaitedResult.getError());
-        return Result.success({ ...this.data, ...awaitedResult.unwrap() });
-      } else {
-        if (result.isFailure()) return Result.failure(result.getError());
-        return Result.success({ ...this.data, ...result.unwrap() });
-      }
-    } catch (e) {
-      return Result.failure(e);
-    }
-  }
 
   /**
    * Matches the result, executing success or failure handler.
@@ -447,12 +392,12 @@ export class Result {
   static all(results) {
     const values = [];
     for (const res of results) {
-      if (res.isFailure()){
+      if (res.isFailure()) {
         const error = res.getError();
         return Result.failure(error);
       }
-      else{
-        values.push(res.unwrap()) 
+      else {
+        values.push(res.unwrap())
       }
     }
     return Result.success(values);
@@ -570,7 +515,7 @@ export function logResult(result) {
  */
 function isNullOrUndefined(value, typeSpec) {
   return (typeSpec === null && value === null) ||
-         (typeSpec === undefined && value === undefined);
+    (typeSpec === undefined && value === undefined);
 }
 
 /**
@@ -677,29 +622,29 @@ function matchesAnyType(value, types) {
  * @returns {string} A human-readable string representation of the input value.
  */
 function formatValue(val) {
-    if (val === null) return 'null';
-    if (typeof val === 'undefined') return 'undefined';
-    if (typeof val !== 'object') return JSON.stringify(val);
+  if (val === null) return 'null';
+  if (typeof val === 'undefined') return 'undefined';
+  if (typeof val !== 'object') return JSON.stringify(val);
 
-    const className = val.constructor?.name || 'Object';
+  const className = val.constructor?.name || 'Object';
 
-    if (val instanceof Set) {
-        return `${className} { ${[...val].map(v => formatValue(v)).join(', ')} }`;
-    }
+  if (val instanceof Set) {
+    return `${className} { ${[...val].map(v => formatValue(v)).join(', ')} }`;
+  }
 
-    if (val instanceof Map) {
-        return `${className} { ${[...val.entries()].map(([k, v]) => `${formatValue(k)} => ${formatValue(v)}`).join(', ')} }`;
-    }
+  if (val instanceof Map) {
+    return `${className} { ${[...val.entries()].map(([k, v]) => `${formatValue(k)} => ${formatValue(v)}`).join(', ')} }`;
+  }
 
-    try {
-        const entries = Object.entries(val)
-            .slice(0, 5) // limit to avoid too much output
-            .map(([k, v]) => `${k}: ${formatValue(v)}`)
-            .join(', ');
-        return `${className} { ${entries} }`;
-    } catch (e) {
-        return `${className}`;
-    }
+  try {
+    const entries = Object.entries(val)
+      .slice(0, 5) // limit to avoid too much output
+      .map(([k, v]) => `${k}: ${formatValue(v)}`)
+      .join(', ');
+    return `${className} { ${entries} }`;
+  } catch (e) {
+    return `${className}`;
+  }
 }
 
 
