@@ -1,5 +1,3 @@
-import { Result } from "../../../utils/Result.js";
-
 export class Scoreboard {
   constructor(initialScores) {
     this.scores = {

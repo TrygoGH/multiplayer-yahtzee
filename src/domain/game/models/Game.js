@@ -1,8 +1,8 @@
 //A game is a representation of a game for a single player.
 
 import { DiceHandler } from "../handlers/DiceHandler.js"
-import { TurnHandler } from "../handlers/turnHandler.js";
-import { ScoreHandler } from "../handlers/scoreHandler.js";
+import { TurnHandler } from "../handlers/TurnHandler.js";
+import { ScoreHandler } from "../handlers/ScoreHandler.js";
 import { ScoreboardHandler } from "../handlers/ScoreboardHandler.js";
 import { GameRules } from "./GameRules.js";
 import { Result } from "../../../utils/Result.js";
