@@ -14,4 +14,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    outDir: 'dist',    // default, outputs to client/dist if this config is inside client
+    emptyOutDir: true, // cleans dist before build
+  }
 })
