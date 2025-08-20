@@ -360,6 +360,7 @@ function setupBaseSocketEvents(socket) {
 
 
   socket.on(EVENTS.client.request.get_lobbies, () => {
+    clearEmptyLobbies()
     sendLobbiesToSocket(socket);
   });
 
@@ -490,7 +491,6 @@ function leaveLobby({ user, lobby }) {
     .bindKeepSync("user", ({ sessionData }) => Result.expectTypes({ vals: User, fn: () => sessionData.user }))
     .bindKeepSync("addUserResult", ({ user }) => Result.wrap(lobby.removeUser(user)))
     .bindKeepSync("updateUserSessionResult", ({ user }) => updateUserSessionData(user.id, { lobby: null, }))
-    .tapSync(() => clearEmptyLobbies())
 }
 
 function switchLobbies({ user, lobby }) {
