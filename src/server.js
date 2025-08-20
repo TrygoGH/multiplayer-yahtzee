@@ -652,7 +652,7 @@ function getLobby(lobbyID) {
 
 function clearEmptyLobbies() {
   for (const [id, lobby] of lobbiesMap.entries()) {
-    console.log(lobby.users, lobby)
+    console.log("lobbies clear check", lobby.users, lobby)
     if (lobby.users.size < 1) {
       lobbiesMap.delete(id); 
       console.log("deleted", id)
