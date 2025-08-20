@@ -490,6 +490,7 @@ function leaveLobby({ user, lobby }) {
     .bindKeepSync("user", ({ sessionData }) => Result.expectTypes({ vals: User, fn: () => sessionData.user }))
     .bindKeepSync("addUserResult", ({ user }) => Result.wrap(lobby.removeUser(user)))
     .bindKeepSync("updateUserSessionResult", ({ user }) => updateUserSessionData(user.id, { lobby: null, }))
+    .tapSync(() => clearEmptyLobbies())
 }
 
 function switchLobbies({ user, lobby }) {
@@ -511,6 +512,14 @@ function getLobby(lobbyID) {
     ? Result.success(lobby)
     : Result.failure(`no lobby with id: ${lobbyID}`);
   return lobbyResult;
+}
+
+function clearEmptyLobbies(){
+  for(const lobby in lobbiesMap.values()){
+    if(lobby.users.size < 1){
+      lobbiesMap.delete(lobby.id);
+    }
+  }
 }
 
 function joinChannel({ socket, channelID, channelName }) {
@@ -637,6 +646,7 @@ function leaveLobbyResponse(socket) {
         return Result.all(results);
       })
       .bindKeepSync("updateUserResult", ({ user }) => updateUserSessionData(user.id, { lobby: null }))
+      .tapSync()
   })
   if (result.isFailure()) {
     console.log("socket with id:", socket.id, "could not leeave lobby", result);
