@@ -4,8 +4,7 @@ import { Result } from "../utils/Result.js"; // Your Result class
 
 // Create a PostgreSQL connection pool
 const pool = new Pool({
-  connectionString: "postgresql://multiplayer_yahtzee_db_52p0_user:qXRMMupBYz6GIo6Hu9DF8k7y4iYuIzYk@dpg-d2irtq9r0fns738t035g-a.frankfurt-postgres.render.com/multiplayer_yahtzee_db_52p0",
-  port: 5432,
+  connectionString: "postgresql://multiplayer_yahtzee_user:E2KE0KfCyZw4hL9mqlP6UJRIwVFhqwkH@dpg-d7kguthkh4rs73969ujg-a.frankfurt-postgres.render.com/multiplayer_yahtzee",
   ssl: {
     rejectUnauthorized: false, // sometimes needed for managed DBs
   },
